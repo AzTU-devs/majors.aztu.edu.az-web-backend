@@ -1,0 +1,51 @@
+import os
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set.")
+
+is_sqlite = DATABASE_URL.startswith("sqlite")
+
+if is_sqlite:
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    import ssl
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+    parsed = urlparse(DATABASE_URL)
+    query_params = parse_qs(parsed.query)
+    query_params.pop("sslmode", None)
+    query_params.pop("channel_binding", None)
+    new_query = urlencode(query_params, doseq=True)
+    clean_url = urlunparse(parsed._replace(query=new_query))
+
+    async_database_url = clean_url.replace("postgresql://", "postgresql+asyncpg://")
+
+    ssl_context = ssl.create_default_context()
+
+    engine = create_async_engine(
+        async_database_url,
+        connect_args={"ssl": ssl_context},
+        echo=False,
+        future=True,
+    )
+
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+    autoflush=False,
+    autocommit=False,
+)
+
+Base = declarative_base()
