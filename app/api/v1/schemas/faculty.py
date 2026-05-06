@@ -7,3 +7,7 @@ class FacultyBase(BaseModel):
 
 class CreateFaculty(BaseModel):
     university_code: str
+
+class CreateFacultyManual(BaseModel):
+    faculty_code: str
+    faculty_name: str

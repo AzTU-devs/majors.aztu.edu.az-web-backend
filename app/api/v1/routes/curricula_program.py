@@ -4,10 +4,11 @@ from app.services.curricula_program import *
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.schemas.curricula_program import *
+from app.utils.jwt import token_required
 
 router = APIRouter()
 
-@router.post("/curricula/create")
+@router.post("/curricula/create", dependencies=[Depends(token_required())])
 async def create_curricula_endpoint(
     curricula_req: CreateCurricula,
     db: AsyncSession = Depends(get_db)
@@ -32,14 +33,14 @@ async def get_subject_details_endpoint(
 ):
     return await get_curricula_by_subject(subject_code, lang_code, db)
 
-@router.delete("/curricula/{subject_code}/delete")
+@router.delete("/curricula/{subject_code}/delete", dependencies=[Depends(token_required())])
 async def deleet_curricula_endpoint(
     subject_code: str,
     db: AsyncSession = Depends(get_db)
 ):
     return await delete_curricula(subject_code, db)
 
-@router.patch("/curricula/{subject_code}/update")
+@router.patch("/curricula/{subject_code}/update", dependencies=[Depends(token_required())])
 async def update_curricula_endpoint(
     subject_code: str,
     update_data: UpdateCurricula,

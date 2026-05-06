@@ -31,7 +31,7 @@ async def get_all_gcos(db: AsyncSession, lang: str = Depends(get_language)):
                     "statusCode": 204,
                     "message": f"No GCO found for language '{lang}!'"
                 },
-                status_code=204
+                status_code=200
             )
 
         gcos = []
@@ -94,7 +94,7 @@ async def get_gcos_by_specialty(specialty_code: str, lang: str, db: AsyncSession
                     "statusCode": 204,
                     "message": "No GCO found for this specialty in the requested language!",
                 },
-                status_code=204
+                status_code=200
             )
 
         gcos = []

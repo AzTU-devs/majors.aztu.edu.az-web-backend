@@ -4,12 +4,13 @@ from app.db.session import get_db
 from app.utils.language import get_language
 from app.api.v1.schemas.literature import CreateLiterature, UpdateLiterature
 from app.services.literature import LiteratureCRUD
+from app.utils.jwt import token_required
 from typing import Optional
 
 router = APIRouter()
 literature_crud = LiteratureCRUD()
 
-@router.post("/")
+@router.post("/", dependencies=[Depends(token_required())])
 async def create_literature(
     literature: CreateLiterature,
     db: AsyncSession = Depends(get_db)
@@ -49,7 +50,7 @@ async def get_all_literatures(
     """Bütün literature-ləri gətirir"""
     return await literature_crud.get_all_literatures(start, end, lang_code, db)
 
-@router.put("/{literature_code}")
+@router.put("/{literature_code}", dependencies=[Depends(token_required())])
 async def update_literature(
     literature_code: int,
     literature: UpdateLiterature,
@@ -58,7 +59,7 @@ async def update_literature(
     """Literature yeniləyir"""
     return await literature_crud.update_literature(literature_code, literature, db)
 
-@router.delete("/{literature_code}")
+@router.delete("/{literature_code}", dependencies=[Depends(token_required())])
 async def delete_literature(
     literature_code: int,
     db: AsyncSession = Depends(get_db)

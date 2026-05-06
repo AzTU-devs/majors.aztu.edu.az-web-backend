@@ -7,6 +7,7 @@ from app.api.v1.schemas.specialty_characteristics import (
 )
 from app.utils.language import get_language
 from app.services import specialty_characteristics as specialty_service
+from app.utils.jwt import token_required
 
 router = APIRouter()
 
@@ -23,18 +24,18 @@ async def get_specialty_characteristics_by_specialty(specialty_code: str, lang: 
 
 
 # POST Create new Specialty Characteristic
-@router.post("/specialty-characteristics")
+@router.post("/specialty-characteristics", dependencies=[Depends(token_required())])
 async def create_specialty_characteristic(specialty_data: SpecialtyCharacteristicsCreate, db: AsyncSession = Depends(get_db)):
     return await specialty_service.create_specialty_characteristics(db=db, char_data=specialty_data)
 
 
 # PUT Update Specialty Characteristic
-@router.put("/specialty-characteristics/{specialty_code}")
+@router.put("/specialty-characteristics/{specialty_code}", dependencies=[Depends(token_required())])
 async def update_specialty_characteristic(specialty_code: str, specialty_data: SpecialtyCharacteristicsUpdate, db: AsyncSession = Depends(get_db)):
     return await specialty_service.update_specialty_characteristics(db=db, specialty_code=specialty_code, char_data=specialty_data)
 
 
 # DELETE Specialty Characteristic
-@router.delete("/specialty-characteristics/{specialty_code}")
+@router.delete("/specialty-characteristics/{specialty_code}", dependencies=[Depends(token_required())])
 async def delete_specialty_characteristic(specialty_code: str, db: AsyncSession = Depends(get_db)):
     return await specialty_service.delete_specialty_characteristics(db=db, specialty_code=specialty_code)

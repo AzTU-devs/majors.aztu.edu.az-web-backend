@@ -42,7 +42,7 @@ async def get_all_competency(db: AsyncSession, lang: str = Depends(get_language)
                     "statusCode": 204,
                     "message": f"No competency found for language '{lang}!'"
                 },
-                status_code=204
+                status_code=200
             )
 
         competencies = []
@@ -114,7 +114,7 @@ async def get_competencies_by_specialty(specialty_code: str, lang: str, db: Asyn
                     "statusCode": 204,
                     "message": "No competency found for this specialty in the requested language!",
                 },
-                status_code=204
+                status_code=200
             )
 
         competencies = []

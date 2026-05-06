@@ -270,6 +270,15 @@ CREATE TABLE IF NOT EXISTS topic_translations (
     updated_at        DATETIME
 );
 
+-- 28b. subject_plo_match  (links subjects to PLOs)
+CREATE TABLE IF NOT EXISTS subject_plo_match (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject_code TEXT NOT NULL,
+    plo_code     TEXT NOT NULL,
+    created_at   DATETIME NOT NULL,
+    UNIQUE (subject_code, plo_code)
+);
+
 -- 29. literature
 CREATE TABLE IF NOT EXISTS literature (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

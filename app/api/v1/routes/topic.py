@@ -4,10 +4,11 @@ from app.utils.language import get_language
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.schemas.topic import CreateTopic
+from app.utils.jwt import token_required
 
 router = APIRouter()
 
-@router.post("/topic/create")
+@router.post("/topic/create", dependencies=[Depends(token_required())])
 async def create_topic(
     topic_request: CreateTopic,
     db: AsyncSession = Depends(get_db)

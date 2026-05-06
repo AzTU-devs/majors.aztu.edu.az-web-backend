@@ -43,7 +43,7 @@ async def get_all_slos(db: AsyncSession, lang: str = Depends(get_language)):
                     "statusCode": 204,
                     "message": f"No SLO found for language '{lang}'!"
                 },
-                status_code=204
+                status_code=200
             )
 
         slos = []
@@ -112,7 +112,7 @@ async def get_slos_by_specialty(
                     "statusCode": 204,
                     "message": "No SLO found for this specialty!",
                 },
-                status_code=204
+                status_code=200
             )
 
         slos = []

@@ -114,7 +114,7 @@ async def get_tlo_by_subject_code(
                 content={
                    "status_code": 204,
                    "message": "No content"
-                }, status_code=status.HTTP_204_NO_CONTENT
+                }, status_code=status.HTTP_200_OK
             )
         
         tlos_arr = []

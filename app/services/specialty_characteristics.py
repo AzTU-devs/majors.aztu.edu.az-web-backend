@@ -35,7 +35,7 @@ async def get_specialty_characteristics_by_specialty(db: AsyncSession, specialty
         rows = result.all()
 
         if not rows:
-            return JSONResponse({"statusCode": 204, "message": f"No specialty characteristics found for specialty '{specialty_code}' and language '{lang}'!"}, status_code=204)
+            return JSONResponse({"statusCode": 204, "message": f"No specialty characteristics found for specialty '{specialty_code}' and language '{lang}'!"}, status_code=200)
 
         characteristics = []
         for char, translation in rows:
@@ -70,7 +70,7 @@ async def get_all_specialty_characteristics(db: AsyncSession, lang: str):
         rows = result.all()
 
         if not rows:
-            return JSONResponse({"statusCode": 204, "message": f"No specialty characteristics found for language '{lang}'!"}, status_code=204)
+            return JSONResponse({"statusCode": 204, "message": f"No specialty characteristics found for language '{lang}'!"}, status_code=200)
 
         characteristics = []
         for char, translation in rows:

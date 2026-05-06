@@ -1,4 +1,6 @@
+import logging
 from sqlalchemy import func, and_
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from app.db.session import get_db
 from sqlalchemy.future import select
@@ -13,6 +15,15 @@ from app.utils.translator import translate_to_english
 from app.api.v1.schemas.specialty import CreateSpecialty
 from app.models.translation.cafedra_translations import CafedraTranslations
 from app.models.translation.specialty_translations import SpecialtyTranslations
+
+logger = logging.getLogger(__name__)
+
+
+def _internal_error() -> JSONResponse:
+    return JSONResponse(
+        {"statusCode": 500, "message": "Internal server error"},
+        status_code=500,
+    )
 
 async def get_specialties(
     faculty_code: str = Query(None),
@@ -47,7 +58,7 @@ async def get_specialties(
         specialties_list = specialties_result.scalars().all()
 
         if not specialties_list:
-            return JSONResponse({"statusCode": 204, "message": "No specialty found"}, status_code=204)
+            return JSONResponse({"statusCode": 204, "message": "No specialty found"}, status_code=200)
 
         # Get translations for specialties
         specialty_codes = [s.specialty_code for s in specialties_list]
@@ -77,7 +88,7 @@ async def get_specialties(
                     CafedraTranslations.lang_code == lang_code
                 )
             )
-            cafedra_name_obj = cafedra_query.scalar_one_or_none()
+            cafedra_name_obj = cafedra_query.scalars().first()
             cafedra_name = cafedra_name_obj.cafedra_name if cafedra_name_obj else None
 
             specialties_arr.append({
@@ -89,8 +100,9 @@ async def get_specialties(
 
         return JSONResponse({"statusCode": 200, "message": "Specialties fetched successfully", "specialties": specialties_arr})
 
-    except Exception as e:
-        return JSONResponse({"statusCode": 500, "error": str(e)}, status_code=500)
+    except Exception:
+        logger.exception("Error in specialty service")
+        return _internal_error()
 
 async def get_specialties_by_cafedra(
     cafedra_code: str,
@@ -154,13 +166,9 @@ async def get_specialties_by_cafedra(
             }, status_code=status.HTTP_200_OK
         )
 
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in specialty service")
+        return _internal_error()
 
 async def add_specialty(
     specialty_details: CreateSpecialty,
@@ -193,26 +201,28 @@ async def add_specialty(
         )
 
         new_specialty_translations_az = SpecialtyTranslations(
-            specialty_code = specialty_details.specialty_code,
-            language_code = 'az',
-            specialty_name = specialty_details.specialty_name,
-            created_at = datetime.utcnow()
-        )
-
-        new_specialty_translations_en = SpecialtyTranslations(
-            specialty_code = specialty_details.specialty_code,
-            language_code = 'en',
-            specialty_name = translate_to_english(specialty_details.specialty_name),
-            created_at = datetime.utcnow()
+            specialty_code=specialty_details.specialty_code,
+            language_code='az',
+            specialty_name=specialty_details.specialty_name,
+            created_at=datetime.utcnow(),
         )
 
         db.add(new_specialty)
         db.add(new_specialty_translations_az)
-        db.add(new_specialty_translations_en)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Specialty code or name already exists.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
         await db.refresh(new_specialty)
         await db.refresh(new_specialty_translations_az)
-        await db.refresh(new_specialty_translations_en)
 
         return JSONResponse(
             content={
@@ -220,14 +230,51 @@ async def add_specialty(
                 "message": "Specialty created successfully."
             }, status_code=status.HTTP_201_CREATED
         )
-    
-    except Exception as e:
+
+    except Exception:
+        logger.exception("Error in specialty service")
+        return _internal_error()
+
+async def delete_specialty(
+    specialty_code: str,
+    db: AsyncSession,
+):
+    try:
+        specialty_query = await db.execute(
+            select(Specialty).where(Specialty.specialty_code == specialty_code)
+        )
+        specialty = specialty_query.scalars().first()
+
+        if not specialty:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Specialty not found"},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        translations_query = await db.execute(
+            select(SpecialtyTranslations).where(
+                SpecialtyTranslations.specialty_code == specialty_code
+            )
+        )
+        for tr in translations_query.scalars().all():
+            await db.delete(tr)
+
+        await db.delete(specialty)
+        await db.commit()
+
         return JSONResponse(
             content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                "statusCode": 200,
+                "message": "Specialty deleted successfully.",
+                "specialty_code": specialty_code,
+            },
+            status_code=status.HTTP_200_OK,
         )
+
+    except Exception:
+        logger.exception("Error in delete_specialty")
+        return _internal_error()
+
 
 async def get_specialty_by_specialty_code(
     specialty_code: str,
@@ -261,10 +308,6 @@ async def get_specialty_by_specialty_code(
             }, status_code=status.HTTP_200_OK
         )
     
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in specialty service")
+        return _internal_error()

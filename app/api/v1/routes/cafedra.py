@@ -1,11 +1,12 @@
 from app.db.session import get_db
 from app.services.cafedra import *
+from app.utils.jwt import token_required
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
-@router.post("/lms/cafedras")
+@router.post("/lms/cafedras", dependencies=[Depends(token_required())])
 async def lms_cafedras_endpoint(
     db: AsyncSession = Depends(get_db)
 ):

@@ -1,3 +1,4 @@
+import logging
 import secrets
 from sqlalchemy import select
 from app.models.otp import Otp
@@ -16,7 +17,15 @@ from app.utils.security import hash_password, verify_password
 from app.api.v1.schemas.auth import SignUp, SignIn, ValidateOTP
 
 
+logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="template")
+
+
+def _internal_error() -> JSONResponse:
+    return JSONResponse(
+        content={"statusCode": 500, "message": "Internal server error"},
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
 
 def generateOtp(length: int = 6) -> str:
     otp = ''.join(str(secrets.randbelow(10)) for _ in range(length))
@@ -103,13 +112,9 @@ async def signup(
             }, status_code=status.HTTP_201_CREATED
         )
     
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Unhandled error in auth service")
+        return _internal_error()
 
 async def signin(
     credentials: SignIn,
@@ -166,13 +171,9 @@ async def signin(
             }
         )
     
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Unhandled error in auth service")
+        return _internal_error()
 
 async def validate_otp(
     credentials: ValidateOTP,
@@ -226,10 +227,6 @@ async def validate_otp(
                 "message": "AUTHORIZED"
             }, status_code=status.HTTP_200_OK
         )
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Unhandled error in auth service")
+        return _internal_error()

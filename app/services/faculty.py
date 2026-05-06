@@ -1,15 +1,85 @@
 import os
+import logging
 import requests
 from datetime import datetime
 from app.db.session import get_db
 from fastapi import Depends, status
 from sqlalchemy.future import select
+from sqlalchemy.exc import IntegrityError
 from app.models.faculty import Faculty
 from fastapi.responses import JSONResponse
 from app.utils.language import get_language
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
 from app.models.translation.faculty_translations import FacultyTranslations
+from app.api.v1.schemas.faculty import CreateFacultyManual
+
+logger = logging.getLogger(__name__)
+
+
+async def add_faculty_manual(
+    payload: CreateFacultyManual,
+    db: AsyncSession,
+):
+    try:
+        existing = await db.execute(
+            select(Faculty).where(Faculty.faculty_code == payload.faculty_code)
+        )
+        faculty = existing.scalars().first()
+
+        now = datetime.utcnow()
+        if not faculty:
+            faculty = Faculty(
+                faculty_code=payload.faculty_code,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(faculty)
+
+        translation = FacultyTranslations(
+            faculty_code=payload.faculty_code,
+            lang_code="az",
+            faculty_name=payload.faculty_name,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(translation)
+
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Faculty code or name already exists.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        await db.refresh(faculty)
+        await db.refresh(translation)
+
+        return JSONResponse(
+            content={
+                "statusCode": 201,
+                "message": "Faculty created successfully.",
+                "faculty": {
+                    "id": faculty.id,
+                    "faculty_code": faculty.faculty_code,
+                    "faculty_name": translation.faculty_name,
+                },
+            },
+            status_code=status.HTTP_201_CREATED,
+        )
+
+    except Exception:
+        logger.exception("Error in add_faculty_manual")
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=500,
+        )
+
 
 
 async def get_faculties_from_lms(db: AsyncSession = Depends(get_db)):
@@ -126,7 +196,7 @@ async def get_faculties(
                     "status": 204,
                     "message": "No faculties found",
                     "faculties": []
-                }, status_code=status.HTTP_204_NO_CONTENT
+                }, status_code=status.HTTP_200_OK
             )
         
         return JSONResponse(

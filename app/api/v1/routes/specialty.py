@@ -4,6 +4,7 @@ from app.utils.language import get_language
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.schemas.specialty import CreateSpecialty
+from app.utils.jwt import token_required
 
 router = APIRouter()
 
@@ -33,12 +34,19 @@ async def get_specialty_details(
 ):
     return await get_specialty_by_specialty_code(specialty_code, lang_code, db)
 
-@router.post("/specialty")
+@router.post("/specialty", dependencies=[Depends(token_required())])
 async def create_specialty_endpoint(
     specialty_details: CreateSpecialty,
     db: AsyncSession = Depends(get_db)
 ):
     return await add_specialty(specialty_details, db)
+
+@router.delete("/specialty/{specialty_code}", dependencies=[Depends(token_required())])
+async def delete_specialty_endpoint(
+    specialty_code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await delete_specialty(specialty_code, db)
 
 @router.get("/specialties/{cafedra_code}")
 async def get_specialties_by_cafedra_endpoint(

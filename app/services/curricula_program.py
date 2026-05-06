@@ -16,6 +16,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _internal_error() -> JSONResponse:
+    return JSONResponse(
+        {"statusCode": 500, "message": "Internal server error"},
+        status_code=500,
+    )
+
 def generate_curricula_code():
     random_number = random.randint(10000, 99999)
     return f"CURRICULA-{random_number}"
@@ -40,6 +47,7 @@ async def add_curricula(
                 }, status_code=status.HTTP_404_NOT_FOUND
             )
         
+        now = datetime.utcnow()
         new_curricula = CurriculaProgram(
             specialty_code=curricula_req.specialty_code,
             subject_code=curricula_req.subject_code,
@@ -48,7 +56,8 @@ async def add_curricula(
             year=curricula_req.year,
             credit=curricula_req.credit,
             hours_per_week=curricula_req.hours_per_week,
-            created_at=datetime.utcnow()
+            created_at=now,
+            updated_at=now,
         )
 
         new_curricula_az = CurriculaProgramTranslations(
@@ -56,24 +65,15 @@ async def add_curricula(
             subject_name=curricula_req.subject_name,
             subject_description=curricula_req.subject_desc,
             language_code="az",
-            created_at=datetime.utcnow()
-        )
-
-        new_curricula_en = CurriculaProgramTranslations(
-            subject_code=curricula_req.subject_code,
-            subject_name=translate_to_english(curricula_req.subject_name),
-            subject_description=translate_to_english(curricula_req.subject_desc),
-            language_code="en",
-            created_at=datetime.utcnow()
+            created_at=now,
+            updated_at=now,
         )
 
         db.add(new_curricula)
         db.add(new_curricula_az)
-        db.add(new_curricula_en)
         await db.commit()
         await db.refresh(new_curricula)
         await db.refresh(new_curricula_az)
-        await db.refresh(new_curricula_en)
 
         return JSONResponse(
             content={
@@ -81,14 +81,10 @@ async def add_curricula(
                 "message": "Curricula created successfully."
             }, status_code=status.HTTP_201_CREATED
         )
-    
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+
+    except Exception:
+        logger.exception("Error in add_curricula")
+        return _internal_error()
 
 async def get_curricula_by_specialty(
     specialty_code: str,
@@ -156,13 +152,9 @@ async def get_curricula_by_specialty(
             }, status_code=status.HTTP_200_OK
         )
     
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in curricula service")
+        return _internal_error()
 
 async def get_curricula_by_subject(
     subject_code: str,
@@ -211,13 +203,9 @@ async def get_curricula_by_subject(
                 "subject_details": subject_obj
             }, status_code=status.HTTP_200_OK
         )
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in curricula service")
+        return _internal_error()
 
 async def delete_curricula(
     subject_code: str,
@@ -258,13 +246,9 @@ async def delete_curricula(
             }, status_code=status.HTTP_200_OK
         )
 
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in curricula service")
+        return _internal_error()
 async def update_curricula(
     subject_code: str,
     update_data: UpdateCurricula,
@@ -325,10 +309,6 @@ async def update_curricula(
                 "message": "Curricula updated successfully."
             }, status_code=status.HTTP_200_OK
         )
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "statusCode": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in curricula service")
+        return _internal_error()

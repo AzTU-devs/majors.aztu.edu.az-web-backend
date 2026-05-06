@@ -3,11 +3,12 @@ from app.db.session import get_db
 from fastapi import APIRouter, Depends
 from app.utils.language import get_language
 from app.api.v1.schemas.tlo import CreateTlo
+from app.utils.jwt import token_required
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
-@router.post("/tlo/create")
+@router.post("/tlo/create", dependencies=[Depends(token_required())])
 async def create_tlo_endpoint(
     clo_request: CreateTlo,
     db: AsyncSession = Depends(get_db)

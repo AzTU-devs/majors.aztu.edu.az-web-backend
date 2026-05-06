@@ -12,6 +12,14 @@ if not DATABASE_URL:
 is_sqlite = DATABASE_URL.startswith("sqlite")
 
 if is_sqlite:
+    # Anchor relative SQLite paths to the backend project root so the DB
+    # file is always the same regardless of where uvicorn was started from.
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if "///./" in DATABASE_URL:
+        rel = DATABASE_URL.split("///./", 1)[1]
+        abs_path = os.path.join(project_root, rel)
+        DATABASE_URL = DATABASE_URL.split("///./", 1)[0] + "///" + abs_path
+
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,

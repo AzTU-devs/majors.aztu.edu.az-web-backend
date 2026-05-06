@@ -40,7 +40,7 @@ async def get_all_plos(db: AsyncSession, lang: str = Depends(get_language)):
                     "statusCode": 204,
                     "message": f"No PLO found for language '{lang}'!"
                 },
-                status_code=204
+                status_code=200
             )
 
         plos = []
@@ -109,7 +109,7 @@ async def get_plos_by_specialty(
                     "statusCode": 204,
                     "message": "No PLO found for this specialty!",
                 },
-                status_code=204
+                status_code=200
             )
 
         plos = []

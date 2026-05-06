@@ -6,6 +6,7 @@ from app.api.v1.schemas.slo import SloCreate, SloOut, SloTranslationOut, SloUpda
 from app.services import slo as slo_service
 from app.utils.language import get_language
 from app.services.slo import get_all_slos as get_all_slos_service
+from app.utils.jwt import token_required
 
 router = APIRouter()
 
@@ -20,17 +21,17 @@ async def get_slos(specialty_code: str, lang: str = Depends(get_language), db: A
     return await slo_service.get_slos_by_specialty(specialty_code, lang, db)
 
 # POST create new SLO
-@router.post("/slo", response_model=None)
+@router.post("/slo", response_model=None, dependencies=[Depends(token_required())])
 async def create_slo(slo_data: SloCreate, db: AsyncSession = Depends(get_db)):
     return await slo_service.create_slo(db, slo_data)
 
 # DELETE SLO by slo_code
-@router.delete("/slo/{slo_code}")
+@router.delete("/slo/{slo_code}", dependencies=[Depends(token_required())])
 async def delete_slo_endpoint(slo_code: str, db: AsyncSession = Depends(get_db)):
     return await slo_service.delete_slo(db, slo_code)
 
 # UPDATE by slo_code
-@router.put("/slo/{slo_code}", response_model=None)
+@router.put("/slo/{slo_code}", response_model=None, dependencies=[Depends(token_required())])
 async def update_slo_endpoint(
     slo_code: str,
     slo_data: SloUpdate,

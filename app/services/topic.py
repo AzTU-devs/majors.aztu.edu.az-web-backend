@@ -137,7 +137,7 @@ async def get_topic_by_subject_code(
                 content={
                     "statusCode": 204,
                     "message": "No content"
-                }, status_code=status.HTTP_204_NO_CONTENT
+                }, status_code=status.HTTP_200_OK
             )
 
         for topic in topics:

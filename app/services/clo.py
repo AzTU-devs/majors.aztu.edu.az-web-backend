@@ -1,3 +1,4 @@
+import logging
 import random
 from datetime import datetime
 from app.models.clo import Clo
@@ -11,6 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
 from app.models.translation.clo_translations import CloTranslations
 from app.models.curricula_program import CurriculaProgram
+
+logger = logging.getLogger(__name__)
+
+
+def _internal_error() -> JSONResponse:
+    return JSONResponse(
+        {"status_code": 500, "message": "Internal server error"},
+        status_code=500,
+    )
 
 def generate_clo_code():
     random_number = random.randint(10000, 99999)
@@ -73,13 +83,9 @@ async def add_clo(
             }, status_code=status.HTTP_201_CREATED
         )
     
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "status_code": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    except Exception:
+        logger.exception("Error in clo service")
+        return _internal_error()
 
 async def get_clo_by_subject_code(
     subject_code: str,
@@ -114,7 +120,7 @@ async def get_clo_by_subject_code(
                 content={
                    "status_code": 204,
                    "message": "No content"
-                }, status_code=status.HTTP_204_NO_CONTENT
+                }, status_code=status.HTTP_200_OK
             )
         
         clos_arr = []
@@ -128,29 +134,24 @@ async def get_clo_by_subject_code(
                 )
             )
 
-            clo_content = clo_content_query.scalar_one_or_none().clo_content
+            translation = clo_content_query.scalars().first()
+            if translation is None:
+                continue
 
-            clo_obj = {
+            clos_arr.append({
                 "subject_code": subject_code,
                 "clo_code": clo.clo_code,
-                "clo_type": clo.clo_type,
-                "clo_url": clo.clo_url,
-                "clo_content": clo_content
-            }
+                "clo_content": translation.clo_content,
+            })
 
-            clos_arr.append(clo_obj)
-        
         return JSONResponse(
             content={
-                "status_code": 201,
-                "message": "Clos fetched successfully."
+                "status_code": 200,
+                "message": "Clos fetched successfully.",
+                "clos": clos_arr,
             }, status_code=status.HTTP_200_OK
         )
-    
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "status_code": 500,
-                "error": str(e)
-            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+
+    except Exception:
+        logger.exception("Error in clo service")
+        return _internal_error()
