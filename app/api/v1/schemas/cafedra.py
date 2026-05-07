@@ -8,3 +8,8 @@ class CafedraBase(BaseModel):
 
 class CreateCafedra(BaseModel):
     university_code: str
+
+class CreateCafedraManual(BaseModel):
+    faculty_code: str
+    cafedra_code: str
+    cafedra_name: str

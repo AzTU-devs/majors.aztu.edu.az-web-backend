@@ -26,6 +26,55 @@ def generate_clo_code():
     random_number = random.randint(10000, 99999)
     return f"CLO-{random_number}"
 
+async def _get_or_create_clo_translation(
+    db: AsyncSession,
+    clo_code: str,
+    lang_code: str,
+):
+    """Return the CloTranslations row for (clo_code, lang_code).
+    If missing but `az` exists, translate az -> requested lang, persist, return.
+    """
+    res = await db.execute(
+        select(CloTranslations).where(
+            CloTranslations.clo_code == clo_code,
+            CloTranslations.language_code == lang_code,
+        )
+    )
+    translation = res.scalars().first()
+    if translation is not None:
+        return translation
+
+    if lang_code == "az":
+        return None
+
+    az_res = await db.execute(
+        select(CloTranslations).where(
+            CloTranslations.clo_code == clo_code,
+            CloTranslations.language_code == "az",
+        )
+    )
+    az_row = az_res.scalars().first()
+    if az_row is None:
+        return None
+
+    try:
+        translated_content = (
+            translate_to_english(az_row.clo_content)
+            if lang_code == "en"
+            else az_row.clo_content
+        )
+    except Exception:
+        translated_content = az_row.clo_content
+
+    new_row = CloTranslations(
+        clo_code=clo_code,
+        language_code=lang_code,
+        clo_content=translated_content,
+        created_at=datetime.utcnow(),
+    )
+    db.add(new_row)
+    return new_row
+
 async def add_clo(
     clo_request: CreateClo,
     db: AsyncSession = Depends(get_db)
@@ -126,15 +175,7 @@ async def get_clo_by_subject_code(
         clos_arr = []
 
         for clo in clos:
-            clo_content_query = await db.execute(
-                select(CloTranslations)
-                .where(
-                    CloTranslations.clo_code == clo.clo_code,
-                    CloTranslations.language_code == lang_code
-                )
-            )
-
-            translation = clo_content_query.scalars().first()
+            translation = await _get_or_create_clo_translation(db, clo.clo_code, lang_code)
             if translation is None:
                 continue
 
@@ -143,6 +184,8 @@ async def get_clo_by_subject_code(
                 "clo_code": clo.clo_code,
                 "clo_content": translation.clo_content,
             })
+
+        await db.commit()
 
         return JSONResponse(
             content={

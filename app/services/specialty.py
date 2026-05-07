@@ -200,15 +200,24 @@ async def add_specialty(
             updated_at=None
         )
 
+        now = datetime.utcnow()
         new_specialty_translations_az = SpecialtyTranslations(
             specialty_code=specialty_details.specialty_code,
             language_code='az',
             specialty_name=specialty_details.specialty_name,
-            created_at=datetime.utcnow(),
+            created_at=now,
+        )
+
+        new_specialty_translations_en = SpecialtyTranslations(
+            specialty_code=specialty_details.specialty_code,
+            language_code='en',
+            specialty_name=translate_to_english(specialty_details.specialty_name),
+            created_at=now,
         )
 
         db.add(new_specialty)
         db.add(new_specialty_translations_az)
+        db.add(new_specialty_translations_en)
         try:
             await db.commit()
         except IntegrityError:
@@ -223,6 +232,7 @@ async def add_specialty(
 
         await db.refresh(new_specialty)
         await db.refresh(new_specialty_translations_az)
+        await db.refresh(new_specialty_translations_en)
 
         return JSONResponse(
             content={

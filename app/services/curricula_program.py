@@ -27,6 +27,62 @@ def generate_curricula_code():
     random_number = random.randint(10000, 99999)
     return f"CURRICULA-{random_number}"
 
+async def _get_or_create_subject_translation(
+    db: AsyncSession,
+    subject_code: str,
+    lang_code: str,
+):
+    """
+    Return the CurriculaProgramTranslations row for (subject_code, lang_code).
+    If lang_code is missing but az exists, machine-translate az -> requested lang
+    and persist the new row so subsequent reads are O(1).
+    """
+    res = await db.execute(
+        select(CurriculaProgramTranslations).where(
+            CurriculaProgramTranslations.subject_code == subject_code,
+            CurriculaProgramTranslations.language_code == lang_code,
+        )
+    )
+    translation = res.scalar_one_or_none()
+    if translation is not None:
+        return translation
+
+    if lang_code == "az":
+        return None
+
+    az_res = await db.execute(
+        select(CurriculaProgramTranslations).where(
+            CurriculaProgramTranslations.subject_code == subject_code,
+            CurriculaProgramTranslations.language_code == "az",
+        )
+    )
+    az_row = az_res.scalar_one_or_none()
+    if az_row is None:
+        return None
+
+    try:
+        translated_name = translate_to_english(az_row.subject_name) if lang_code == "en" else az_row.subject_name
+        translated_desc = (
+            translate_to_english(az_row.subject_description)
+            if lang_code == "en" and az_row.subject_description
+            else (az_row.subject_description or "")
+        )
+    except Exception:
+        translated_name = az_row.subject_name
+        translated_desc = az_row.subject_description or ""
+
+    now = datetime.utcnow()
+    new_row = CurriculaProgramTranslations(
+        subject_code=subject_code,
+        language_code=lang_code,
+        subject_name=translated_name,
+        subject_description=translated_desc,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(new_row)
+    return new_row
+
 async def add_curricula(
     curricula_req: CreateCurricula,
     db: AsyncSession = Depends(get_db)
@@ -121,19 +177,15 @@ async def get_curricula_by_specialty(
         subjects_arr = []
 
         for curricula in curriculas:
-            subject_query = await db.execute(
-                select(CurriculaProgramTranslations)
-                .where(
-                    CurriculaProgramTranslations.subject_code == curricula.subject_code,
-                    CurriculaProgramTranslations.language_code == lang_code
-                )
+            subject_details = await _get_or_create_subject_translation(
+                db, curricula.subject_code, lang_code
             )
 
-            subject_details =subject_query.scalar_one_or_none()
+            subject_name = subject_details.subject_name if subject_details else curricula.subject_code
 
             subject_obj = {
                 "subject_code": curricula.subject_code,
-                "subject_name": subject_details.subject_name,
+                "subject_name": subject_name,
                 "semester": curricula.semester,
                 "year": curricula.year,
                 "hours_per_week": curricula.hours_per_week,
@@ -142,6 +194,8 @@ async def get_curricula_by_specialty(
             }
 
             subjects_arr.append(subject_obj)
+
+        await db.commit()
         
         return JSONResponse(
             content={
@@ -177,19 +231,14 @@ async def get_curricula_by_subject(
                 }, status_code=status.HTTP_404_NOT_FOUND
             )
         
-        subject_translation_query = await db.execute(
-            select(CurriculaProgramTranslations)
-            .where(
-                CurriculaProgramTranslations.subject_code == subject_code,
-                CurriculaProgramTranslations.language_code == lang_code
-            )
+        subject_translations = await _get_or_create_subject_translation(
+            db, subject_code, lang_code
         )
-
-        subject_translations = subject_translation_query.scalar_one_or_none()
+        await db.commit()
 
         subject_obj = {
-            "subject_name": subject_translations.subject_name,
-            "subject_description": subject_translations.subject_description,
+            "subject_name": subject_translations.subject_name if subject_translations else subject_code,
+            "subject_description": subject_translations.subject_description if subject_translations else "",
             "semester": subject.semester,
             "hours_per_week": subject.hours_per_week,
             "year": subject.year,

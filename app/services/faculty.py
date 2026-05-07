@@ -36,14 +36,22 @@ async def add_faculty_manual(
             )
             db.add(faculty)
 
-        translation = FacultyTranslations(
+        translation_az = FacultyTranslations(
             faculty_code=payload.faculty_code,
             lang_code="az",
             faculty_name=payload.faculty_name,
             created_at=now,
             updated_at=now,
         )
-        db.add(translation)
+        translation_en = FacultyTranslations(
+            faculty_code=payload.faculty_code,
+            lang_code="en",
+            faculty_name=translate_to_english(payload.faculty_name),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(translation_az)
+        db.add(translation_en)
 
         try:
             await db.commit()
@@ -58,7 +66,8 @@ async def add_faculty_manual(
             )
 
         await db.refresh(faculty)
-        await db.refresh(translation)
+        await db.refresh(translation_az)
+        await db.refresh(translation_en)
 
         return JSONResponse(
             content={
@@ -67,7 +76,7 @@ async def add_faculty_manual(
                 "faculty": {
                     "id": faculty.id,
                     "faculty_code": faculty.faculty_code,
-                    "faculty_name": translation.faculty_name,
+                    "faculty_name": translation_az.faculty_name,
                 },
             },
             status_code=status.HTTP_201_CREATED,

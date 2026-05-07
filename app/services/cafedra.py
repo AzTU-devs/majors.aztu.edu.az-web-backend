@@ -1,16 +1,114 @@
 import os
+import logging
 import requests
 from datetime import datetime
 from app.db.session import get_db
 from fastapi import Depends, status
 from sqlalchemy.future import select
+from sqlalchemy.exc import IntegrityError
 from app.models.faculty import Faculty
 from app.models.cafedra import Cafedra
 from fastapi.responses import JSONResponse
 from app.utils.language import get_language
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
+from app.api.v1.schemas.cafedra import CreateCafedraManual
 from app.models.translation.cafedra_translations import CafedraTranslations
+
+logger = logging.getLogger(__name__)
+
+
+async def add_cafedra_manual(
+    payload: CreateCafedraManual,
+    db: AsyncSession,
+):
+    try:
+        faculty_query = await db.execute(
+            select(Faculty).where(Faculty.faculty_code == payload.faculty_code)
+        )
+        if not faculty_query.scalars().first():
+            return JSONResponse(
+                content={
+                    "statusCode": 404,
+                    "message": "Faculty not found.",
+                },
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        existing = await db.execute(
+            select(Cafedra).where(Cafedra.cafedra_code == payload.cafedra_code)
+        )
+        if existing.scalars().first():
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Cafedra code already exists.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        now = datetime.utcnow()
+        cafedra = Cafedra(
+            faculty_code=payload.faculty_code,
+            cafedra_code=payload.cafedra_code,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(cafedra)
+
+        translation_az = CafedraTranslations(
+            cafedra_code=payload.cafedra_code,
+            lang_code="az",
+            cafedra_name=payload.cafedra_name,
+            created_at=now,
+            updated_at=now,
+        )
+        translation_en = CafedraTranslations(
+            cafedra_code=payload.cafedra_code,
+            lang_code="en",
+            cafedra_name=translate_to_english(payload.cafedra_name),
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(translation_az)
+        db.add(translation_en)
+
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Cafedra code already exists.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        await db.refresh(cafedra)
+        await db.refresh(translation_az)
+        await db.refresh(translation_en)
+
+        return JSONResponse(
+            content={
+                "statusCode": 201,
+                "message": "Cafedra created successfully.",
+                "cafedra": {
+                    "id": cafedra.id,
+                    "faculty_code": cafedra.faculty_code,
+                    "cafedra_code": cafedra.cafedra_code,
+                    "cafedra_name": translation_az.cafedra_name,
+                },
+            },
+            status_code=status.HTTP_201_CREATED,
+        )
+
+    except Exception:
+        logger.exception("Error in add_cafedra_manual")
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=500,
+        )
 
 
 async def get_cafedras_from_lms(db: AsyncSession = Depends(get_db)):
@@ -117,12 +215,16 @@ async def get_cafedras(
 ):
     try:
         fetched_data = await db.execute(
-            select(CafedraTranslations)
+            select(Cafedra, CafedraTranslations)
+            .join(
+                CafedraTranslations,
+                CafedraTranslations.cafedra_code == Cafedra.cafedra_code,
+            )
             .where(CafedraTranslations.lang_code == lang_code)
         )
-        cafedras = fetched_data.scalars().all()
+        rows = fetched_data.all()
 
-        if not cafedras:
+        if not rows:
             return JSONResponse(
                 content={
                     "statusCode": 200,
@@ -130,7 +232,7 @@ async def get_cafedras(
                     "cafedras": []
                 }, status_code=200
             )
-        
+
         return JSONResponse(
             content={
                 "statusCode": 200,
@@ -139,10 +241,10 @@ async def get_cafedras(
                     {
                         "faculty_code": cafedra.faculty_code,
                         "cafedra_code": cafedra.cafedra_code,
-                        "cafedra_name": cafedra.cafedra_name,
+                        "cafedra_name": translation.cafedra_name,
                         "created_at": str(cafedra.created_at) if cafedra.created_at else None,
                         "updated_at": str(cafedra.updated_at) if cafedra.updated_at else None
-                    } for cafedra in cafedras
+                    } for cafedra, translation in rows
                 ]
             }
         )

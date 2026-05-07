@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 from pydantic import BaseModel
 
 class CreateCurricula(BaseModel):
@@ -13,10 +13,10 @@ class CreateCurricula(BaseModel):
     hours_per_week: int
 
 class UpdateCurricula(BaseModel):
-    semester: int = None
-    status: str = None
-    year: int = None
-    credit: int = None
-    hours_per_week: int = None
-    subject_name: Dict[str, str] = None
-    subject_description: Dict[str, str] = None
+    semester: Optional[int] = None
+    status: Optional[int] = None
+    year: Optional[int] = None
+    credit: Optional[int] = None
+    hours_per_week: Optional[int] = None
+    subject_name: Optional[Dict[str, str]] = None
+    subject_description: Optional[Dict[str, str]] = None
