@@ -34,7 +34,7 @@ async def get_specialty_details(
 ):
     return await get_specialty_by_specialty_code(specialty_code, lang_code, db)
 
-@router.post("/specialty", dependencies=[Depends(token_required())])
+@router.post("/specialty")
 async def create_specialty_endpoint(
     specialty_details: CreateSpecialty,
     db: AsyncSession = Depends(get_db)

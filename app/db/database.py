@@ -27,7 +27,6 @@ if is_sqlite:
         connect_args={"check_same_thread": False},
     )
 else:
-    import ssl
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
     parsed = urlparse(DATABASE_URL)
@@ -39,11 +38,8 @@ else:
 
     async_database_url = clean_url.replace("postgresql://", "postgresql+asyncpg://")
 
-    ssl_context = ssl.create_default_context()
-
     engine = create_async_engine(
         async_database_url,
-        connect_args={"ssl": ssl_context},
         echo=False,
         future=True,
     )

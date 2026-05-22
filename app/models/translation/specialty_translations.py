@@ -13,14 +13,15 @@ from sqlalchemy.orm import relationship
 class SpecialtyTranslations(Base):
     __tablename__ = "specialty_translations"
     __table_args__ = (
-        UniqueConstraint("specialty_name"),
+        UniqueConstraint("specialty_code", "language_code", name="uq_specialty_lang"),
+        UniqueConstraint("specialty_name", "language_code", name="uq_specialty_name_lang"),
         CheckConstraint("language_code IN ('en', 'az')")
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    specialty_code = Column(String, ForeignKey("specialties.specialty_code"), nullable=False, unique=True)
+    specialty_code = Column(String, ForeignKey("specialties.specialty_code"), nullable=False)
     language_code = Column(String, nullable=False)
-    specialty_name = Column(String, nullable=False, unique=True)
+    specialty_name = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime)
 
