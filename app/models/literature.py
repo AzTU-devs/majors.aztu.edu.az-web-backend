@@ -13,7 +13,10 @@ class Literature(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     literature_code = Column(Integer, unique=True, nullable=False)
-    specialty_code = Column(Integer, nullable=False)
-    url = Column(String,nullable=False)
+    # Literature is attached to a subject (curricula_program.subject_code).
+    subject_code = Column(String, nullable=True, index=True)
+    # Legacy: kept nullable for backward compatibility.
+    specialty_code = Column(Integer, nullable=True)
+    url = Column(String, nullable=False)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime)

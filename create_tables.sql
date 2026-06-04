@@ -291,11 +291,13 @@ CREATE TABLE IF NOT EXISTS topic_translations (
 CREATE TABLE IF NOT EXISTS literature (
     id              SERIAL PRIMARY KEY,
     literature_code INTEGER NOT NULL UNIQUE,
-    specialty_code  INTEGER NOT NULL,
+    subject_code    VARCHAR,
+    specialty_code  INTEGER,
     url             VARCHAR NOT NULL,
     created_at      TIMESTAMP NOT NULL,
     updated_at      TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS ix_literature_subject_code ON literature (subject_code);
 
 -- 30. literature_translations
 CREATE TABLE IF NOT EXISTS literature_translations (

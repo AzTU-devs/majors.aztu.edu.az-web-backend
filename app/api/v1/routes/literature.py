@@ -10,13 +10,26 @@ from typing import Optional
 router = APIRouter()
 literature_crud = LiteratureCRUD()
 
-@router.post("/", dependencies=[Depends(token_required())])
+@router.post("/create", dependencies=[Depends(token_required())])
 async def create_literature(
     literature: CreateLiterature,
     db: AsyncSession = Depends(get_db)
 ):
-    """Yeni literature yaradır"""
+    """Yeni literature yaradır (fənnə bağlı)"""
     return await literature_crud.add_literature(literature, db)
+
+@router.get("/subject/{subject_code}")
+async def get_literatures_by_subject(
+    subject_code: str,
+    start: int = Query(0, ge=0),
+    end: int = Query(10, ge=1),
+    lang_code: str = Depends(get_language),
+    db: AsyncSession = Depends(get_db)
+):
+    """Fənn koduna görə ədəbiyyatları gətirir"""
+    return await literature_crud.get_literature_by_subject_code(
+        subject_code, start, end, lang_code, db
+    )
 
 @router.get("/specialty/{specialty_code}")
 async def get_literatures_by_specialty(
@@ -26,7 +39,7 @@ async def get_literatures_by_specialty(
     lang_code: str = Depends(get_language),
     db: AsyncSession = Depends(get_db)
 ):
-    """Specialty code-a görə literature-ləri gətirir"""
+    """Specialty code-a görə literature-ləri gətirir (köhnə)"""
     return await literature_crud.get_literature_by_specialty_code(
         specialty_code, start, end, lang_code, db
     )

@@ -62,7 +62,7 @@ app.include_router(curricula_router, prefix="/api", tags=['Curricula'])
 app.include_router(university_routes, prefix="/api", tags=['University'])
 app.include_router(competency_router, prefix="/api", tags=['Competency'])
 app.include_router(specialty_characteristics_router, prefix="/api", tags=['Specialty_Characteristics'])
-app.include_router(literature_router, prefix="/api", tags=['Literature'])
+app.include_router(literature_router, prefix="/api/literature", tags=['Literature'])
 app.include_router(match_router, prefix="/api", tags=['Match'])
 app.include_router(competency_match_router, prefix="/api", tags=['CompetencyMatch'])
 

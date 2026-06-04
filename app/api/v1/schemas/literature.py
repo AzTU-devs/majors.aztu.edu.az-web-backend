@@ -2,12 +2,11 @@ from pydantic import BaseModel
 from typing import Optional
 
 class CreateLiterature(BaseModel):
-    literature_code: int
-    specialty_code: int
+    subject_code: str
     url: str
     literature_name: str
 
 class UpdateLiterature(BaseModel):
-    specialty_code: Optional[int] = None
+    subject_code: Optional[str] = None
     url: Optional[str] = None
     literature_name: Optional[str] = None

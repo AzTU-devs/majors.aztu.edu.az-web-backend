@@ -300,7 +300,8 @@ CREATE TABLE IF NOT EXISTS subject_competency_match (
 CREATE TABLE IF NOT EXISTS literature (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     literature_code INTEGER NOT NULL UNIQUE,
-    specialty_code  INTEGER NOT NULL,
+    subject_code    TEXT,
+    specialty_code  INTEGER,
     url             TEXT NOT NULL,
     created_at      DATETIME NOT NULL,
     updated_at      DATETIME

@@ -25,28 +25,22 @@ class LiteratureCRUD:
         literature_request: CreateLiterature,
         db: AsyncSession
     ):
-        """Yeni literature tərcümələri ilə birlikdə yaradır"""
+        """Yeni literature tərcümələri ilə birlikdə yaradır (fənnə bağlı)"""
         try:
-            # Literature code-un unikallığını yoxla
-            existing_query = await db.execute(
-                select(Literature)
-                .where(Literature.literature_code == literature_request.literature_code)
-            )
-            
-            existing_literature = existing_query.scalars().first()
-            
-            if existing_literature:
-                return JSONResponse(
-                    content={
-                        "statusCode": 400,
-                        "message": f"Literature with code {literature_request.literature_code} already exists"
-                    }, status_code=status.HTTP_400_BAD_REQUEST
+            # Generate a unique literature code.
+            literature_code = self.generate_literature_code()
+            for _ in range(5):
+                exists_q = await db.execute(
+                    select(Literature).where(Literature.literature_code == literature_code)
                 )
-            
+                if exists_q.scalars().first() is None:
+                    break
+                literature_code = self.generate_literature_code()
+
             # Yeni literature yarad
             new_literature = Literature(
-                literature_code=literature_request.literature_code,
-                specialty_code=literature_request.specialty_code,
+                literature_code=literature_code,
+                subject_code=literature_request.subject_code,
                 url=literature_request.url,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
@@ -54,7 +48,7 @@ class LiteratureCRUD:
 
             # Azərbaycan dilində tərcümə
             new_literature_az = LiteratureTrans(
-                literature_code=literature_request.literature_code,
+                literature_code=str(literature_code),
                 language_code="az",
                 literature_name=literature_request.literature_name,
                 created_at=datetime.utcnow(),
@@ -63,7 +57,7 @@ class LiteratureCRUD:
 
             # İngilis dilinə tərcümə
             new_literature_en = LiteratureTrans(
-                literature_code=literature_request.literature_code,
+                literature_code=str(literature_code),
                 language_code="en",
                 literature_name=translate_to_english(literature_request.literature_name),
                 created_at=datetime.utcnow(),
@@ -94,6 +88,72 @@ class LiteratureCRUD:
                     "statusCode": 500,
                     "error": str(e)
                 }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    async def get_literature_by_subject_code(
+        self,
+        subject_code: str,
+        start: int,
+        end: int,
+        lang_code: str,
+        db: AsyncSession
+    ):
+        """Fənn koduna görə ədəbiyyatları gətirir"""
+        try:
+            total_query = await db.execute(
+                select(func.count()).select_from(Literature).where(Literature.subject_code == subject_code)
+            )
+            total = total_query.scalar()
+
+            if total == 0:
+                return JSONResponse(
+                    content={"statusCode": 204, "message": "No content"},
+                    status_code=status.HTTP_200_OK,
+                )
+
+            literature_query = await db.execute(
+                select(Literature)
+                .where(Literature.subject_code == subject_code)
+                .offset(start)
+                .limit(end - start)
+            )
+            literatures = literature_query.scalars().all()
+
+            literature_arr = []
+            for literature in literatures:
+                translation_query = await db.execute(
+                    select(LiteratureTrans).where(
+                        and_(
+                            LiteratureTrans.literature_code == str(literature.literature_code),
+                            LiteratureTrans.language_code == lang_code,
+                        )
+                    )
+                )
+                translation = translation_query.scalar_one_or_none()
+
+                literature_arr.append({
+                    "id": literature.id,
+                    "literature_code": literature.literature_code,
+                    "subject_code": literature.subject_code,
+                    "literature_name": translation.literature_name if translation else None,
+                    "url": literature.url,
+                    "created_at": literature.created_at.isoformat() if literature.created_at else None,
+                    "updated_at": literature.updated_at.isoformat() if literature.updated_at else None,
+                })
+
+            return JSONResponse(
+                content={
+                    "statusCode": 200,
+                    "literatures": literature_arr,
+                    "total": total,
+                }
+            )
+        except Exception as e:
+            print("Get literature by subject error:", e)
+            traceback.print_exc()
+            return JSONResponse(
+                content={"statusCode": 500, "error": str(e)},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     async def get_literature_by_specialty_code(
