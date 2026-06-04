@@ -24,6 +24,7 @@ from app.api.v1.routes.clo import router as clo_router
 from app.api.v1.routes.tlo import router as tlo_router
 from app.api.v1.routes.gco import router as gco_router
 from app.api.v1.routes.auth import router as auth_router
+from app.api.v1.routes.user import router as user_router
 from app.api.v1.routes.topic import router as topic_router
 from app.api.v1.routes.faculty import router as faculty_routes
 from app.api.v1.routes.cafedra import router as cafedra_routes
@@ -46,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/auth", tags=['Auth'])
+app.include_router(user_router, prefix="/api", tags=['User'])
 app.include_router(slo_router, prefix="/api", tags=['SLO'])
 app.include_router(plo_router, prefix="/api", tags=['PLO'])
 app.include_router(gco_router, prefix="/api", tags=['GCO'])

@@ -150,7 +150,15 @@ async def signin(
                     "message": "UNAUTHORIZED"
                 }, status_code=status.HTTP_401_UNAUTHORIZED
             )
-        
+
+        if not exist_user.approved:
+            return JSONResponse(
+                content={
+                    "statusCode": 403,
+                    "message": "NOT_APPROVED"
+                }, status_code=status.HTTP_403_FORBIDDEN
+            )
+
         token = encode_auth_token(exist_user.fin_kod, exist_user.role, exist_user.approved)
 
         return JSONResponse(
@@ -164,6 +172,7 @@ async def signin(
                     "father_name": user.father_name,
                     "fin_kod": user.fin_kod,
                     "role": exist_user.role,
+                    "approved": exist_user.approved,
                     "cafedra_code": user.cafedra_code,
                     "email": user.email,
                     "created_at": user.created_at.isoformat() if user.created_at else None

@@ -12,3 +12,7 @@ class UpdateUser(BaseModel):
     surname: Optional[str]
     father_name: Optional[str]
     email: Optional[EmailStr]
+
+class ApproveUser(BaseModel):
+    fin_kod: str
+    approved: bool = True
