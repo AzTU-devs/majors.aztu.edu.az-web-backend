@@ -131,7 +131,9 @@ CREATE TABLE IF NOT EXISTS graduate_career_opportunities (
 CREATE TABLE IF NOT EXISTS competency (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     specialty_code  TEXT NOT NULL REFERENCES specialties(specialty_code),
-    competency_code TEXT NOT NULL UNIQUE
+    competency_code TEXT NOT NULL UNIQUE,
+    -- 1 = Peşə (Job), 2 = İxtisas (Specialty)
+    competency_type INTEGER NOT NULL DEFAULT 2
 );
 
 -- 15. specialty_characteristics  (depends on: specialties)
@@ -278,6 +280,15 @@ CREATE TABLE IF NOT EXISTS subject_plo_match (
     plo_code     TEXT NOT NULL,
     created_at   DATETIME NOT NULL,
     UNIQUE (subject_code, plo_code)
+);
+
+-- 28c. subject_competency_match  (links subjects to competencies)
+CREATE TABLE IF NOT EXISTS subject_competency_match (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject_code    TEXT NOT NULL,
+    competency_code TEXT NOT NULL,
+    created_at      DATETIME NOT NULL,
+    UNIQUE (subject_code, competency_code)
 );
 
 -- 29. literature

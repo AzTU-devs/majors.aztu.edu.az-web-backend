@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.api.v1.schemas.competency import CompetencyCreate, CompetencyUpdate
@@ -14,10 +15,17 @@ async def get_all_competency(lang: str = Depends(get_language), db: AsyncSession
     return await competency_service.get_all_competency(db=db, lang=lang)
 
 
-# GET by specialty code
+# GET by specialty code (optionally filtered by competency type: 1=Job, 2=Specialty)
 @router.get("/competency/{specialty_code}")
-async def get_competencies_by_specialty(specialty_code: str, lang: str = Depends(get_language), db: AsyncSession = Depends(get_db)):
-    return await competency_service.get_competencies_by_specialty(specialty_code=specialty_code, lang=lang, db=db)
+async def get_competencies_by_specialty(
+    specialty_code: str,
+    lang: str = Depends(get_language),
+    type: Optional[int] = Query(default=None, description="1=Job (Peşə), 2=Specialty (İxtisas)"),
+    db: AsyncSession = Depends(get_db),
+):
+    return await competency_service.get_competencies_by_specialty(
+        specialty_code=specialty_code, lang=lang, db=db, competency_type=type
+    )
 
 # POST Create new Competency
 @router.post("/competency", dependencies=[Depends(token_required())])

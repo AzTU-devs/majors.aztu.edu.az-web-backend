@@ -52,6 +52,7 @@ async def get_all_competency(db: AsyncSession, lang: str = Depends(get_language)
                     "id": competency.id,
                     "specialty_code": competency.specialty_code,
                     "competency_code": competency.competency_code,
+                    "competency_type": competency.competency_type,
                     "language_code": translation.language_code,
                     "competency_content": translation.competency_content
                 }
@@ -76,7 +77,7 @@ async def get_all_competency(db: AsyncSession, lang: str = Depends(get_language)
         )
 
 # GET Competencies by specialty_code
-async def get_competencies_by_specialty(specialty_code: str, lang: str, db: AsyncSession):
+async def get_competencies_by_specialty(specialty_code: str, lang: str, db: AsyncSession, competency_type: int = None):
     if lang not in allowed_languages:
         return JSONResponse(
             content={
@@ -105,6 +106,8 @@ async def get_competencies_by_specialty(specialty_code: str, lang: str, db: Asyn
             .where(Competency.specialty_code == specialty_code)
             .where(CompetencyTranslation.language_code == lang)
         )
+        if competency_type is not None:
+            query = query.where(Competency.competency_type == competency_type)
         result = await db.execute(query)
         rows = result.all()
 
@@ -124,6 +127,7 @@ async def get_competencies_by_specialty(specialty_code: str, lang: str, db: Asyn
                     "id": competency.id,
                     "specialty_code": competency.specialty_code,
                     "competency_code": competency.competency_code,
+                    "competency_type": competency.competency_type,
                     "language_code": translation.language_code,
                     "competency_content": translation.competency_content
                 }
@@ -164,7 +168,8 @@ async def create_competency(db: AsyncSession, competency_data: CompetencyCreate)
 
         new_competency = Competency(
             specialty_code=competency_data.specialty_code,
-            competency_code=competency_code
+            competency_code=competency_code,
+            competency_type=competency_data.competency_type
         )
         db.add(new_competency)
 
@@ -286,6 +291,9 @@ async def update_competency(
         
         tr_az.competency_content = competency_data.competency_content
         tr_en.competency_content = translate_to_english(competency_data.competency_content)
+
+        if getattr(competency_data, "competency_type", None) is not None:
+            competency.competency_type = competency_data.competency_type
 
         await db.commit()
         await db.refresh(competency)

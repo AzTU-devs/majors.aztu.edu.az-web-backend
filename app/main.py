@@ -33,6 +33,7 @@ from app.api.v1.routes.competency import router as competency_router
 from app.api.v1.routes.university import router as university_routes
 from app.api.v1.routes.literature import router as literature_router
 from app.api.v1.routes.match import router as match_router
+from app.api.v1.routes.competency_match import router as competency_match_router
 from app.api.v1.routes.curricula_program import router as curricula_router
 from app.api.v1.routes.specialty_characteristics import router as specialty_characteristics_router
 
@@ -63,6 +64,7 @@ app.include_router(competency_router, prefix="/api", tags=['Competency'])
 app.include_router(specialty_characteristics_router, prefix="/api", tags=['Specialty_Characteristics'])
 app.include_router(literature_router, prefix="/api", tags=['Literature'])
 app.include_router(match_router, prefix="/api", tags=['Match'])
+app.include_router(competency_match_router, prefix="/api", tags=['CompetencyMatch'])
 
 @app.get("/")
 def read_root():

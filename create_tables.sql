@@ -133,7 +133,9 @@ CREATE INDEX IF NOT EXISTS ix_gco_career_code ON graduate_career_opportunities (
 CREATE TABLE IF NOT EXISTS competency (
     id              SERIAL PRIMARY KEY,
     specialty_code  VARCHAR NOT NULL REFERENCES specialties(specialty_code),
-    competency_code VARCHAR NOT NULL UNIQUE
+    competency_code VARCHAR NOT NULL UNIQUE,
+    -- 1 = Peşə (Job), 2 = İxtisas (Specialty)
+    competency_type INTEGER NOT NULL DEFAULT 2
 );
 
 -- 15. specialty_characteristics  (depends on: specialties)
@@ -308,3 +310,14 @@ CREATE TABLE IF NOT EXISTS subject_plo_match (
 );
 CREATE INDEX IF NOT EXISTS ix_subject_plo_match_subject_code ON subject_plo_match (subject_code);
 CREATE INDEX IF NOT EXISTS ix_subject_plo_match_plo_code     ON subject_plo_match (plo_code);
+
+-- 32. subject_competency_match
+CREATE TABLE IF NOT EXISTS subject_competency_match (
+    id              SERIAL PRIMARY KEY,
+    subject_code    VARCHAR NOT NULL,
+    competency_code VARCHAR NOT NULL,
+    created_at      TIMESTAMP NOT NULL,
+    CONSTRAINT uq_subject_competency UNIQUE (subject_code, competency_code)
+);
+CREATE INDEX IF NOT EXISTS ix_subject_competency_match_subject_code    ON subject_competency_match (subject_code);
+CREATE INDEX IF NOT EXISTS ix_subject_competency_match_competency_code ON subject_competency_match (competency_code);
