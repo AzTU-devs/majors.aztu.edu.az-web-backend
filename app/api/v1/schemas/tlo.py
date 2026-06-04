@@ -1,5 +1,9 @@
 from pydantic import BaseModel
 
 class CreateTlo(BaseModel):
-    subject_code: str
+    topic_code: str
+    tlo_content: str
+
+class UpdateTlo(BaseModel):
+    tlo_code: str
     tlo_content: str

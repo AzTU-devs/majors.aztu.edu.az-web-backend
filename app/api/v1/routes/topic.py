@@ -3,7 +3,7 @@ from app.db.session import get_db
 from app.utils.language import get_language
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.v1.schemas.topic import CreateTopic
+from app.api.v1.schemas.topic import CreateTopic, UpdateTopic
 from app.utils.jwt import token_required
 
 router = APIRouter()
@@ -14,6 +14,13 @@ async def create_topic(
     db: AsyncSession = Depends(get_db)
 ):
     return await add_topic(topic_request, db)
+
+@router.patch("/topic/update", dependencies=[Depends(token_required())])
+async def update_topic_endpoint(
+    topic_request: UpdateTopic,
+    db: AsyncSession = Depends(get_db)
+):
+    return await update_topic(topic_request, db)
 
 @router.get("/topic/{subject_code}")
 async def get_topics(

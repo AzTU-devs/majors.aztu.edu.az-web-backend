@@ -238,7 +238,8 @@ CREATE TABLE IF NOT EXISTS clo_translations (
 CREATE TABLE IF NOT EXISTS "Tlo" (
     id           SERIAL PRIMARY KEY,
     subject_code VARCHAR NOT NULL,
-    clo_code     VARCHAR NOT NULL,
+    topic_code   VARCHAR NOT NULL,
+    tlo_code     VARCHAR NOT NULL,
     created_at   TIMESTAMP NOT NULL,
     updated_at   TIMESTAMP
 );

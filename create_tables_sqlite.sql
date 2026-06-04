@@ -232,7 +232,8 @@ CREATE TABLE IF NOT EXISTS clo_translations (
 CREATE TABLE IF NOT EXISTS "Tlo" (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     subject_code TEXT NOT NULL,
-    clo_code     TEXT NOT NULL,
+    topic_code   TEXT NOT NULL,
+    tlo_code     TEXT NOT NULL,
     created_at   DATETIME NOT NULL,
     updated_at   DATETIME
 );

@@ -1,6 +1,9 @@
 import random
+import logging
+import traceback
 from datetime import datetime
 from app.models.tlo import Tlo
+from app.models.topic import Topic
 from app.db.session import get_db
 from fastapi import Depends, status
 from sqlalchemy.future import select
@@ -10,36 +13,38 @@ from app.api.v1.schemas.tlo import CreateTlo
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
 from app.models.translation.tlo_translation import TloTranslations
-from app.models.curricula_program import CurriculaProgram
+
+logger = logging.getLogger(__name__)
+
 
 def generate_tlo_code():
     random_number = random.randint(10000, 99999)
     return f"tlo-{random_number}"
+
 
 async def add_tlo(
     tlo_request: CreateTlo,
     db: AsyncSession = Depends(get_db)
 ) -> JSONResponse:
     try:
-        subject_query = await db.execute(
-            select(CurriculaProgram)
-            .where(CurriculaProgram.subject_code == tlo_request.subject_code)
+        topic_query = await db.execute(
+            select(Topic).where(Topic.topic_code == tlo_request.topic_code)
         )
+        topic = topic_query.scalars().first()
 
-        subject = subject_query.scalars().first()
-
-        if not subject:
+        if not topic:
             return JSONResponse(
                 content={
-                   "status_code": 404,
-                   "message": "Subject not found"
+                    "statusCode": 404,
+                    "message": "Topic not found"
                 }, status_code=status.HTTP_404_NOT_FOUND
             )
-        
+
         tlo_code = generate_tlo_code()
 
         new_tlo = Tlo(
-            subject_code=tlo_request.subject_code,
+            subject_code=topic.subject_code,
+            topic_code=topic.topic_code,
             tlo_code=tlo_code,
             created_at=datetime.utcnow()
         )
@@ -62,95 +67,173 @@ async def add_tlo(
         db.add(new_tlo_az)
         db.add(new_tlo_en)
         await db.commit()
-        await db.refresh(new_tlo)
-        await db.refresh(new_tlo_az)
-        await db.refresh(new_tlo_en)
 
         return JSONResponse(
             content={
-                "status_code": 201,
-                "message": "tlo added successfully."
+                "statusCode": 201,
+                "message": "TLO added successfully.",
+                "tlo_code": tlo_code
             }, status_code=status.HTTP_201_CREATED
         )
-    
+
     except Exception as e:
+        await db.rollback()
+        logger.exception("Error in add_tlo")
+        traceback.print_exc()
         return JSONResponse(
             content={
-                "status_code": 500,
+                "statusCode": 500,
                 "error": str(e)
             }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-async def get_tlo_by_subject_code(
-    subject_code: str,
+
+async def get_tlo_by_topic_code(
+    topic_code: str,
     lang_code: str = Depends(get_language),
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        subject_query = await db.execute(
-            select(CurriculaProgram)
-            .where(CurriculaProgram.subject_code == subject_code)
-        )
-
-        subject = subject_query.scalars().first()
-
-        if not subject:
-            return JSONResponse(
-                content={
-                   "status_code": 404,
-                   "message": "Subject not found"
-                }, status_code=status.HTTP_404_NOT_FOUND
-            )
-        
         tlo_query = await db.execute(
-            select(Tlo)
-            .where(Tlo.subject_code == subject_code)
+            select(Tlo).where(Tlo.topic_code == topic_code)
         )
-
         tlos = tlo_query.scalars().all()
 
-        if not tlos:
-            return JSONResponse(
-                content={
-                   "status_code": 204,
-                   "message": "No content"
-                }, status_code=status.HTTP_200_OK
-            )
-        
         tlos_arr = []
-
         for tlo in tlos:
-            tlo_content_query = await db.execute(
-                select(TloTranslations)
-                .where(
+            content_query = await db.execute(
+                select(TloTranslations).where(
                     TloTranslations.tlo_code == tlo.tlo_code,
                     TloTranslations.language_code == lang_code
                 )
             )
+            translation = content_query.scalar_one_or_none()
 
-            tlo_content = tlo_content_query.scalar_one_or_none().tlo_content
-
-            tlo_obj = {
-                "subject_code": subject_code,
+            tlos_arr.append({
+                "topic_code": tlo.topic_code,
                 "tlo_code": tlo.tlo_code,
-                "tlo_type": tlo.tlo_type,
-                "tlo_url": tlo.tlo_url,
-                "tlo_content": tlo_content
-            }
+                "tlo_content": translation.tlo_content if translation else None,
+            })
 
-            tlos_arr.append(tlo_obj)
-        
         return JSONResponse(
             content={
-                "status_code": 201,
-                "message": "tlos fetched successfully."
+                "statusCode": 200,
+                "tlos": tlos_arr
             }, status_code=status.HTTP_200_OK
         )
-    
+
     except Exception as e:
+        logger.exception("Error in get_tlo_by_topic_code")
         return JSONResponse(
             content={
-                "status_code": 500,
+                "statusCode": 500,
+                "error": str(e)
+            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+async def update_tlo(
+    tlo_request,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        tlo_query = await db.execute(
+            select(Tlo).where(Tlo.tlo_code == tlo_request.tlo_code)
+        )
+        tlo = tlo_query.scalars().first()
+
+        if not tlo:
+            return JSONResponse(
+                content={
+                    "statusCode": 404,
+                    "message": "TLO not found"
+                }, status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        az_query = await db.execute(
+            select(TloTranslations).where(
+                TloTranslations.tlo_code == tlo_request.tlo_code,
+                TloTranslations.language_code == "az"
+            )
+        )
+        az = az_query.scalar_one_or_none()
+
+        en_query = await db.execute(
+            select(TloTranslations).where(
+                TloTranslations.tlo_code == tlo_request.tlo_code,
+                TloTranslations.language_code == "en"
+            )
+        )
+        en = en_query.scalar_one_or_none()
+
+        if az is not None:
+            az.tlo_content = tlo_request.tlo_content
+            az.updated_at = datetime.utcnow()
+        if en is not None:
+            en.tlo_content = translate_to_english(tlo_request.tlo_content)
+            en.updated_at = datetime.utcnow()
+
+        tlo.updated_at = datetime.utcnow()
+        await db.commit()
+
+        return JSONResponse(
+            content={
+                "statusCode": 200,
+                "message": "TLO updated successfully."
+            }, status_code=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.exception("Error in update_tlo")
+        return JSONResponse(
+            content={
+                "statusCode": 500,
+                "error": str(e)
+            }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+async def delete_tlo(
+    tlo_code: str,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        tlo_query = await db.execute(
+            select(Tlo).where(Tlo.tlo_code == tlo_code)
+        )
+        tlo = tlo_query.scalars().first()
+
+        if not tlo:
+            return JSONResponse(
+                content={
+                    "statusCode": 404,
+                    "message": "TLO not found"
+                }, status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        translations_query = await db.execute(
+            select(TloTranslations).where(TloTranslations.tlo_code == tlo_code)
+        )
+        for translation in translations_query.scalars().all():
+            await db.delete(translation)
+
+        await db.delete(tlo)
+        await db.commit()
+
+        return JSONResponse(
+            content={
+                "statusCode": 200,
+                "message": "TLO deleted successfully."
+            }, status_code=status.HTTP_200_OK
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.exception("Error in delete_tlo")
+        return JSONResponse(
+            content={
+                "statusCode": 500,
                 "error": str(e)
             }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
