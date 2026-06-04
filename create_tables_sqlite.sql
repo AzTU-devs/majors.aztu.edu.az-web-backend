@@ -152,6 +152,11 @@ CREATE TABLE IF NOT EXISTS curricula_program (
     credit         INTEGER NOT NULL,
     year           INTEGER NOT NULL,
     hours_per_week INTEGER NOT NULL,
+    form_of_education       INTEGER,   -- 1=Əyani, 2=Qiyabi
+    language_of_instruction INTEGER,   -- 1=az, 2=en, 3=ru
+    in_class_hours          TEXT,
+    teaching_methods        TEXT,
+    assessment              TEXT,
     created_at     DATETIME NOT NULL,
     updated_at     DATETIME NOT NULL
 );

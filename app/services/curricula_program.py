@@ -1,3 +1,4 @@
+import json
 import random
 from sqlalchemy import func
 from datetime import datetime
@@ -26,6 +27,34 @@ def _internal_error() -> JSONResponse:
 def generate_curricula_code():
     random_number = random.randint(10000, 99999)
     return f"CURRICULA-{random_number}"
+
+# Standard AzTU assessment template used when a subject is created without one.
+DEFAULT_ASSESSMENT = [
+    {
+        "form": "Cari qiymətləndirmə",
+        "description": "Cari qiymətləndirmə - fənn üzrə tələbənin semestr müddətində fəaliyyətinin qiymətləndirilməsi olmaqla, mühazirə və məşğələ (laboratoriya) dərs materiallarının mənimsənilmə səviyyəsini qiymətləndirilir.",
+        "score": "30 bal",
+        "ftn": "FTN 1-5",
+    },
+    {
+        "form": "Davamiyyət",
+        "description": "Tələbə fənn üzrə dərslərin 25%-dən çoxunda iştirak etmədiyi halda imtahana buraxılmır.",
+        "score": "10 bal",
+        "ftn": "-",
+    },
+    {
+        "form": "Tələbənin sərbəst işi",
+        "description": "Tələbəyə fənn üzrə semestr ərzində 1 sərbəst işin (zəruri hallarda sərbəst işlərin sayı artırıla bilər) yerinə yetirilməsi tapşırığı verilir.",
+        "score": "10 bal",
+        "ftn": "FTN--",
+    },
+    {
+        "form": "İmtahan",
+        "description": "İmtahan şifahi, yazılı, yazılı-elektron, test üsulu ilə keçirilir",
+        "score": "50 bal",
+        "ftn": "FTN 1-5",
+    },
+]
 
 async def _get_or_create_subject_translation(
     db: AsyncSession,
@@ -104,6 +133,11 @@ async def add_curricula(
             )
         
         now = datetime.utcnow()
+        # Seed the standard assessment template when none is supplied.
+        assessment_value = curricula_req.assessment
+        if not assessment_value:
+            assessment_value = json.dumps(DEFAULT_ASSESSMENT, ensure_ascii=False)
+
         new_curricula = CurriculaProgram(
             specialty_code=curricula_req.specialty_code,
             subject_code=curricula_req.subject_code,
@@ -112,6 +146,11 @@ async def add_curricula(
             year=curricula_req.year,
             credit=curricula_req.credit,
             hours_per_week=curricula_req.hours_per_week,
+            form_of_education=curricula_req.form_of_education,
+            language_of_instruction=curricula_req.language_of_instruction,
+            in_class_hours=curricula_req.in_class_hours,
+            teaching_methods=curricula_req.teaching_methods,
+            assessment=assessment_value,
             created_at=now,
             updated_at=now,
         )
@@ -236,6 +275,11 @@ async def get_curricula_by_subject(
         )
         await db.commit()
 
+        try:
+            assessment_list = json.loads(subject.assessment) if subject.assessment else []
+        except Exception:
+            assessment_list = []
+
         subject_obj = {
             "subject_name": subject_translations.subject_name if subject_translations else subject_code,
             "subject_description": subject_translations.subject_description if subject_translations else "",
@@ -243,7 +287,12 @@ async def get_curricula_by_subject(
             "hours_per_week": subject.hours_per_week,
             "year": subject.year,
             "status": subject.status,
-            "credit": subject.credit
+            "credit": subject.credit,
+            "form_of_education": subject.form_of_education,
+            "language_of_instruction": subject.language_of_instruction,
+            "in_class_hours": subject.in_class_hours,
+            "teaching_methods": subject.teaching_methods,
+            "assessment": assessment_list
         }
 
         return JSONResponse(
@@ -334,6 +383,21 @@ async def update_curricula(
             updated = True
         if update_data.hours_per_week is not None:
             curricula.hours_per_week = update_data.hours_per_week
+            updated = True
+        if update_data.form_of_education is not None:
+            curricula.form_of_education = update_data.form_of_education
+            updated = True
+        if update_data.language_of_instruction is not None:
+            curricula.language_of_instruction = update_data.language_of_instruction
+            updated = True
+        if update_data.in_class_hours is not None:
+            curricula.in_class_hours = update_data.in_class_hours
+            updated = True
+        if update_data.teaching_methods is not None:
+            curricula.teaching_methods = update_data.teaching_methods
+            updated = True
+        if update_data.assessment is not None:
+            curricula.assessment = update_data.assessment
             updated = True
 
         if (update_data.subject_name is not None) or (update_data.subject_description is not None):

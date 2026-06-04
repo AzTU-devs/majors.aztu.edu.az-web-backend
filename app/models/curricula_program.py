@@ -24,6 +24,16 @@ class CurriculaProgram(Base):
     credit = Column(Integer, nullable=False)
     year = Column(Integer, nullable=False)
     hours_per_week = Column(Integer, nullable=False)
+    # 1 - Əyani (Full-time), 2 - Qiyabi (Correspondence)
+    form_of_education = Column(Integer, nullable=True)
+    # 1 - Azerbaijani, 2 - English, 3 - Russian
+    language_of_instruction = Column(Integer, nullable=True)
+    # Free text, e.g. "a) 30 saat - mühazirə b) 15 saat - seminar"
+    in_class_hours = Column(String, nullable=True)
+    # Comma-separated teaching method keys (lecture, seminar, lab, ...)
+    teaching_methods = Column(String, nullable=True)
+    # JSON array of {form, description, score, ftn}
+    assessment = Column(String, nullable=True)
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=False)
 
