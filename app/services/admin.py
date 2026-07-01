@@ -179,14 +179,23 @@ async def update_admin(fin_kod: str, payload: UpdateAdmin, db: AsyncSession):
         profile = profile_result.scalar_one_or_none()
 
         if profile is None:
-            profile = AdminProfile(
-                fin_kod=fin_kod,
-                name=payload.name or "",
-                surname=payload.surname or "",
-                email=payload.email or "",
-                created_at=datetime.utcnow(),
-            )
-            db.add(profile)
+            # Only materialize a profile when the caller actually supplies the
+            # full profile details. A password/approval-only update must not
+            # create a blank one (empty, and empty email collides on the
+            # unique constraint for a second profile-less admin).
+            if (
+                payload.name is not None
+                and payload.surname is not None
+                and payload.email is not None
+            ):
+                profile = AdminProfile(
+                    fin_kod=fin_kod,
+                    name=payload.name,
+                    surname=payload.surname,
+                    email=payload.email,
+                    created_at=datetime.utcnow(),
+                )
+                db.add(profile)
         else:
             if payload.name is not None:
                 profile.name = payload.name

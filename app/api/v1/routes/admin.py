@@ -18,7 +18,9 @@ router = APIRouter()
 ADMIN_ONLY = Depends(token_required(allowed_roles=[1]))
 
 
-@router.post("/admins", dependencies=[ADMIN_ONLY])
+# NOTE: temporarily token-free (per request) so an admin can be bootstrapped
+# without an existing admin token. Re-add `dependencies=[ADMIN_ONLY]` to lock it.
+@router.post("/admins")
 async def create_admin_endpoint(
     payload: CreateAdmin,
     db: AsyncSession = Depends(get_db),
