@@ -8,6 +8,7 @@ from sqlalchemy import (
 )
 from app.db.database import Base
 from sqlalchemy.orm import relationship
+from app.models.auth import Auth
 
 class Otp(Base):
     __tablename__ = "otp"

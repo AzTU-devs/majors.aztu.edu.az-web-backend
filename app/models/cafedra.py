@@ -7,6 +7,9 @@ from sqlalchemy import (
 )
 from app.db.database import Base
 from sqlalchemy.orm import relationship
+from app.models.faculty import Faculty
+from app.models.speciality import Specialty
+from app.models.translation.cafedra_translations import CafedraTranslations
 
 class Cafedra(Base):
     __tablename__ = "cafedras"

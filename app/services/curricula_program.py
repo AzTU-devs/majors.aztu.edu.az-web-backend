@@ -149,6 +149,7 @@ async def add_curricula(
             form_of_education=curricula_req.form_of_education,
             language_of_instruction=curricula_req.language_of_instruction,
             in_class_hours=curricula_req.in_class_hours,
+            out_of_class_hours=curricula_req.out_of_class_hours,
             teaching_methods=curricula_req.teaching_methods,
             assessment=assessment_value,
             created_at=now,
@@ -291,6 +292,7 @@ async def get_curricula_by_subject(
             "form_of_education": subject.form_of_education,
             "language_of_instruction": subject.language_of_instruction,
             "in_class_hours": subject.in_class_hours,
+            "out_of_class_hours": subject.out_of_class_hours,
             "teaching_methods": subject.teaching_methods,
             "assessment": assessment_list
         }
@@ -392,6 +394,9 @@ async def update_curricula(
             updated = True
         if update_data.in_class_hours is not None:
             curricula.in_class_hours = update_data.in_class_hours
+            updated = True
+        if update_data.out_of_class_hours is not None:
+            curricula.out_of_class_hours = update_data.out_of_class_hours
             updated = True
         if update_data.teaching_methods is not None:
             curricula.teaching_methods = update_data.teaching_methods

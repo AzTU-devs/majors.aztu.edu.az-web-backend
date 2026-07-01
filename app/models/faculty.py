@@ -7,6 +7,7 @@ from sqlalchemy import (
 )
 from app.db.database import Base
 from sqlalchemy.orm import relationship
+from app.models.translation.faculty_translations import FacultyTranslations
 
 class Faculty(Base):
     __tablename__ = "faculties"

@@ -125,23 +125,23 @@ def seed(conn: sqlite3.Connection) -> None:
             (code, en),
         )
 
-    # SLOs
-    for code, az, en in [
-        ("SLO-1", "Alqoritmləri analiz etmək", "Analyse algorithms"),
-        ("SLO-2", "Verilənlər bazası dizayn etmək", "Design databases"),
-    ]:
-        cur.execute(
-            "INSERT OR IGNORE INTO slo (specialty_code, slo_code) VALUES (?, ?)",
-            ("050631", code),
-        )
-        cur.execute(
-            "INSERT OR IGNORE INTO slo_translations (slo_code, language_code, slo_content) VALUES (?, 'az', ?)",
-            (code, az),
-        )
-        cur.execute(
-            "INSERT OR IGNORE INTO slo_translations (slo_code, language_code, slo_content) VALUES (?, 'en', ?)",
-            (code, en),
-        )
+    # SLOs — removed from the platform (kept commented for reference).
+    # for code, az, en in [
+    #     ("SLO-1", "Alqoritmləri analiz etmək", "Analyse algorithms"),
+    #     ("SLO-2", "Verilənlər bazası dizayn etmək", "Design databases"),
+    # ]:
+    #     cur.execute(
+    #         "INSERT OR IGNORE INTO slo (specialty_code, slo_code) VALUES (?, ?)",
+    #         ("050631", code),
+    #     )
+    #     cur.execute(
+    #         "INSERT OR IGNORE INTO slo_translations (slo_code, language_code, slo_content) VALUES (?, 'az', ?)",
+    #         (code, az),
+    #     )
+    #     cur.execute(
+    #         "INSERT OR IGNORE INTO slo_translations (slo_code, language_code, slo_content) VALUES (?, 'en', ?)",
+    #         (code, en),
+    #     )
 
     # Curricula subject + translations + CLO
     if not _exists(

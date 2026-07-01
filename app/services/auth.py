@@ -1,11 +1,11 @@
 import logging
 import secrets
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from fastapi import Depends, status, HTTPException
 from app.models.otp import Otp
 from app.models.auth import Auth
-from app.models.user import User
 from app.db.session import get_db
-from fastapi import Depends, status
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 from app.utils.email import send_html_email
@@ -36,6 +36,8 @@ async def signup(
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        from app.models.user import User
+
         fetched_exist_user = await db.execute(
             select(Auth)
             .where(Auth.fin_kod == user.fin_kod)
@@ -50,8 +52,28 @@ async def signup(
                     "message": "Fin kod in use.",
                 }, status_code=status.HTTP_409_CONFLICT
             )
-        
-        validate_password(user.password)
+
+        # A profile can only be attached to a free cafedra (unique per user).
+        existing_cafedra_user = await db.execute(
+            select(User).where(User.cafedra_code == user.cafedra_code)
+        )
+        if existing_cafedra_user.scalar_one_or_none():
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Cafedra already has a registered user.",
+                }, status_code=status.HTTP_409_CONFLICT
+            )
+
+        # validate_password raises HTTPException on weak passwords; surface it as
+        # a clean 400 instead of letting the broad handler turn it into a 500.
+        try:
+            validate_password(user.password)
+        except HTTPException as exc:
+            return JSONResponse(
+                content={"statusCode": exc.status_code, "message": exc.detail},
+                status_code=exc.status_code,
+            )
 
         otp = generateOtp()
         hashed_otp = hash_password(otp)
@@ -85,24 +107,32 @@ async def signup(
         db.add(new_user)
         db.add(new_auth_user)
         db.add(new_otp)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "User already exists.",
+                }, status_code=status.HTTP_409_CONFLICT
+            )
         await db.refresh(new_user)
         await db.refresh(new_auth_user)
         await db.refresh(new_otp)
 
-        subject = "Qeydiyyat"
+        # Email delivery must never break sign-up; failures are logged inside
+        # send_html_email and swallowed here so a mail outage can't 500 register.
+        try:
+            html_content = templates.get_template("/registration_email.html").render({
+                "name": user.name })
+            send_html_email("Qeydiyyat", user.email, user.name, html_content)
 
-        html_content = templates.get_template("/registration_email.html").render({
-            "name": user.name })
-
-        send_html_email(subject, user.email, user.name, html_content)
-
-        subject = "OTP"
-
-        html_content = templates.get_template("/otp_verification.html").render({
-            "otp_code": otp})
-
-        send_html_email(subject, user.email, user.name, html_content)
+            html_content = templates.get_template("/otp_verification.html").render({
+                "otp_code": otp})
+            send_html_email("OTP", user.email, user.name, html_content)
+        except Exception:
+            logger.exception("Failed to send sign-up emails (non-fatal)")
 
 
         return JSONResponse(
@@ -121,6 +151,8 @@ async def signin(
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        from app.models.user import User
+
         fetched_exist_user = await db.execute(
             select(Auth)
             .where(Auth.fin_kod == credentials.fin_kod)

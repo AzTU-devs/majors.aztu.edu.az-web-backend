@@ -14,6 +14,7 @@ class CreateCurricula(BaseModel):
     form_of_education: Optional[int] = None
     language_of_instruction: Optional[int] = None
     in_class_hours: Optional[str] = None
+    out_of_class_hours: Optional[str] = None
     teaching_methods: Optional[str] = None
     assessment: Optional[str] = None
 
@@ -26,6 +27,7 @@ class UpdateCurricula(BaseModel):
     form_of_education: Optional[int] = None
     language_of_instruction: Optional[int] = None
     in_class_hours: Optional[str] = None
+    out_of_class_hours: Optional[str] = None
     teaching_methods: Optional[str] = None
     assessment: Optional[str] = None
     subject_name: Optional[Dict[str, str]] = None

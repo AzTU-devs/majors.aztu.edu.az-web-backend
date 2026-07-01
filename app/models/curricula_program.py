@@ -30,6 +30,8 @@ class CurriculaProgram(Base):
     language_of_instruction = Column(Integer, nullable=True)
     # Free text, e.g. "a) 30 saat - mühazirə b) 15 saat - seminar"
     in_class_hours = Column(String, nullable=True)
+    # Auditoriya kənar saatlar (out-of-classroom hours), free text
+    out_of_class_hours = Column(String, nullable=True)
     # Comma-separated teaching method keys (lecture, seminar, lab, ...)
     teaching_methods = Column(String, nullable=True)
     # JSON array of {form, description, score, ftn}
