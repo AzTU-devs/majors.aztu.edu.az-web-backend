@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 
 class CafedraBase(BaseModel):
@@ -13,3 +14,7 @@ class CreateCafedraManual(BaseModel):
     faculty_code: str
     cafedra_code: str
     cafedra_name: str
+
+class UpdateCafedraManual(BaseModel):
+    cafedra_name: Optional[str] = None
+    faculty_code: Optional[str] = None

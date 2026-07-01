@@ -1,9 +1,10 @@
 from app.db.session import get_db
 from app.services.cafedra import *
 from app.utils.jwt import token_required
-from fastapi import APIRouter, Depends
+from app.utils.language import get_language
+from fastapi import APIRouter, Depends, Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.v1.schemas.cafedra import CreateCafedraManual
+from app.api.v1.schemas.cafedra import CreateCafedraManual, UpdateCafedraManual
 
 router = APIRouter()
 
@@ -19,6 +20,21 @@ async def create_cafedra_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     return await add_cafedra_manual(payload, db)
+
+@router.put("/cafedra/{cafedra_code}")
+async def update_cafedra_endpoint(
+    payload: UpdateCafedraManual,
+    cafedra_code: str = Path(...),
+    db: AsyncSession = Depends(get_db),
+):
+    return await update_cafedra_manual(cafedra_code, payload, db)
+
+@router.delete("/cafedra/{cafedra_code}")
+async def delete_cafedra_endpoint(
+    cafedra_code: str = Path(...),
+    db: AsyncSession = Depends(get_db),
+):
+    return await delete_cafedra_manual(cafedra_code, db)
 
 @router.get("/cafedras")
 async def list_cafedras(

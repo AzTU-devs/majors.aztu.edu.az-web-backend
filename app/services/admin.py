@@ -36,6 +36,30 @@ async def create_admin(payload: CreateAdmin, db: AsyncSession):
                 status_code=status.HTTP_409_CONFLICT,
             )
 
+        # Both admin_profile.email and admin_profile.fin_kod are unique; check
+        # them up front so the caller gets a specific reason instead of a
+        # generic "Admin already exists" from the commit-time IntegrityError.
+        email_taken = await db.execute(
+            select(AdminProfile).where(AdminProfile.email == payload.email)
+        )
+        if email_taken.scalar_one_or_none():
+            return JSONResponse(
+                content={"statusCode": 409, "message": "Email already in use."},
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        profile_taken = await db.execute(
+            select(AdminProfile).where(AdminProfile.fin_kod == payload.fin_kod)
+        )
+        if profile_taken.scalar_one_or_none():
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "An admin profile with this FIN already exists.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
         try:
             validate_password(payload.password)
         except HTTPException as exc:

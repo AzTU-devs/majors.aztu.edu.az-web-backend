@@ -152,6 +152,7 @@ async def signin(
 ):
     try:
         from app.models.user import User
+        from app.models.admin_profile import AdminProfile
 
         fetched_exist_user = await db.execute(
             select(Auth)
@@ -167,14 +168,24 @@ async def signin(
                     "message": "UNAUTHORIZED"
                 }, status_code=status.HTTP_401_UNAUTHORIZED
             )
-        
+
         fetched_user = await db.execute(
             select(User)
             .where(User.fin_kod == credentials.fin_kod)
         )
 
         user = fetched_user.scalar_one_or_none()
-        
+
+        # Admins (role 1 created via /api/admins) have an AdminProfile instead
+        # of a User row, so fall back to it when no User exists.
+        profile = None
+        if user is None:
+            fetched_profile = await db.execute(
+                select(AdminProfile)
+                .where(AdminProfile.fin_kod == credentials.fin_kod)
+            )
+            profile = fetched_profile.scalar_one_or_none()
+
         if not verify_password(credentials.password, exist_user.password):
             return JSONResponse(
                 content={
@@ -199,15 +210,18 @@ async def signin(
                 "message": "AUTHORIZED",
                 "token": token,
                 "user": {
-                    "name": user.name,
-                    "surname": user.surname,
-                    "father_name": user.father_name,
-                    "fin_kod": user.fin_kod,
+                    "name": user.name if user else (profile.name if profile else None),
+                    "surname": user.surname if user else (profile.surname if profile else None),
+                    "father_name": user.father_name if user else None,
+                    "fin_kod": exist_user.fin_kod,
                     "role": exist_user.role,
                     "approved": exist_user.approved,
-                    "cafedra_code": user.cafedra_code,
-                    "email": user.email,
-                    "created_at": user.created_at.isoformat() if user.created_at else None
+                    "cafedra_code": user.cafedra_code if user else None,
+                    "email": user.email if user else (profile.email if profile else None),
+                    "created_at": (
+                        user.created_at.isoformat() if user and user.created_at
+                        else (profile.created_at.isoformat() if profile and profile.created_at else None)
+                    ),
                 }
             }
         )

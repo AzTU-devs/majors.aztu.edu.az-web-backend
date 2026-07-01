@@ -22,7 +22,8 @@ class CurriculaProgram(Base):
     # 2 - mandatory
     # 3 - other
     credit = Column(Integer, nullable=False)
-    year = Column(Integer, nullable=False)
+    # Academic year, free text like "2025-2026" (Akademik il)
+    year = Column(String, nullable=False)
     hours_per_week = Column(Integer, nullable=False)
     # 1 - Əyani (Full-time), 2 - Qiyabi (Correspondence)
     form_of_education = Column(Integer, nullable=True)

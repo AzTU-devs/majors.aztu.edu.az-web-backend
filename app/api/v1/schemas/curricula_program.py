@@ -9,7 +9,7 @@ class CreateCurricula(BaseModel):
     semester: int
     status: int
     credit: int
-    year: int
+    year: str
     hours_per_week: int
     form_of_education: Optional[int] = None
     language_of_instruction: Optional[int] = None
@@ -21,7 +21,7 @@ class CreateCurricula(BaseModel):
 class UpdateCurricula(BaseModel):
     semester: Optional[int] = None
     status: Optional[int] = None
-    year: Optional[int] = None
+    year: Optional[str] = None
     credit: Optional[int] = None
     hours_per_week: Optional[int] = None
     form_of_education: Optional[int] = None

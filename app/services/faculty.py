@@ -11,8 +11,9 @@ from fastapi.responses import JSONResponse
 from app.utils.language import get_language
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
+from app.models.cafedra import Cafedra
 from app.models.translation.faculty_translations import FacultyTranslations
-from app.api.v1.schemas.faculty import CreateFacultyManual
+from app.api.v1.schemas.faculty import CreateFacultyManual, UpdateFacultyManual
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,119 @@ async def add_faculty_manual(
             status_code=500,
         )
 
+
+
+async def update_faculty_manual(
+    faculty_code: str,
+    payload: UpdateFacultyManual,
+    db: AsyncSession,
+):
+    try:
+        existing = await db.execute(
+            select(Faculty).where(Faculty.faculty_code == faculty_code)
+        )
+        faculty = existing.scalars().first()
+        if not faculty:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Faculty not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        now = datetime.utcnow()
+        try:
+            en_name = translate_to_english(payload.faculty_name)
+        except Exception:
+            en_name = payload.faculty_name
+
+        for lang, name in (("az", payload.faculty_name), ("en", en_name)):
+            res = await db.execute(
+                select(FacultyTranslations).where(
+                    FacultyTranslations.faculty_code == faculty_code,
+                    FacultyTranslations.lang_code == lang,
+                )
+            )
+            tr = res.scalars().first()
+            if tr:
+                tr.faculty_name = name
+                tr.updated_at = now
+            else:
+                db.add(FacultyTranslations(
+                    faculty_code=faculty_code,
+                    lang_code=lang,
+                    faculty_name=name,
+                    created_at=now,
+                    updated_at=now,
+                ))
+        faculty.updated_at = now
+
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={"statusCode": 409, "message": "Faculty name already exists."},
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        return JSONResponse(
+            content={"statusCode": 200, "message": "Faculty updated successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Error in update_faculty_manual")
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=500,
+        )
+
+
+async def delete_faculty_manual(faculty_code: str, db: AsyncSession):
+    try:
+        existing = await db.execute(
+            select(Faculty).where(Faculty.faculty_code == faculty_code)
+        )
+        faculty = existing.scalars().first()
+        if not faculty:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Faculty not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Block deletion while cafedras still reference this faculty.
+        dependent = await db.execute(
+            select(Cafedra).where(Cafedra.faculty_code == faculty_code)
+        )
+        if dependent.scalars().first():
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Faculty has cafedras. Delete them first.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        translations = await db.execute(
+            select(FacultyTranslations).where(
+                FacultyTranslations.faculty_code == faculty_code
+            )
+        )
+        for tr in translations.scalars().all():
+            await db.delete(tr)
+        await db.delete(faculty)
+        await db.commit()
+
+        return JSONResponse(
+            content={"statusCode": 200, "message": "Faculty deleted successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Error in delete_faculty_manual")
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=500,
+        )
 
 
 async def get_faculties_from_lms(db: AsyncSession = Depends(get_db)):

@@ -11,3 +11,6 @@ class CreateFaculty(BaseModel):
 class CreateFacultyManual(BaseModel):
     faculty_code: str
     faculty_name: str
+
+class UpdateFacultyManual(BaseModel):
+    faculty_name: str

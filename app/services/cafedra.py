@@ -11,8 +11,10 @@ from app.models.cafedra import Cafedra
 from fastapi.responses import JSONResponse
 from app.utils.language import get_language
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.speciality import Specialty
+from app.models.user import User
 from app.utils.translator import translate_to_english
-from app.api.v1.schemas.cafedra import CreateCafedraManual
+from app.api.v1.schemas.cafedra import CreateCafedraManual, UpdateCafedraManual
 from app.models.translation.cafedra_translations import CafedraTranslations
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,143 @@ async def add_cafedra_manual(
 
     except Exception:
         logger.exception("Error in add_cafedra_manual")
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=500,
+        )
+
+
+async def update_cafedra_manual(
+    cafedra_code: str,
+    payload: UpdateCafedraManual,
+    db: AsyncSession,
+):
+    try:
+        existing = await db.execute(
+            select(Cafedra).where(Cafedra.cafedra_code == cafedra_code)
+        )
+        cafedra = existing.scalars().first()
+        if not cafedra:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Cafedra not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        now = datetime.utcnow()
+
+        if payload.faculty_code is not None:
+            faculty_query = await db.execute(
+                select(Faculty).where(Faculty.faculty_code == payload.faculty_code)
+            )
+            if not faculty_query.scalars().first():
+                return JSONResponse(
+                    content={"statusCode": 404, "message": "Faculty not found."},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                )
+            cafedra.faculty_code = payload.faculty_code
+
+        if payload.cafedra_name is not None:
+            try:
+                en_name = translate_to_english(payload.cafedra_name)
+            except Exception:
+                en_name = payload.cafedra_name
+            for lang, name in (("az", payload.cafedra_name), ("en", en_name)):
+                res = await db.execute(
+                    select(CafedraTranslations).where(
+                        CafedraTranslations.cafedra_code == cafedra_code,
+                        CafedraTranslations.lang_code == lang,
+                    )
+                )
+                tr = res.scalars().first()
+                if tr:
+                    tr.cafedra_name = name
+                    tr.updated_at = now
+                else:
+                    db.add(CafedraTranslations(
+                        cafedra_code=cafedra_code,
+                        lang_code=lang,
+                        cafedra_name=name,
+                        created_at=now,
+                        updated_at=now,
+                    ))
+
+        cafedra.updated_at = now
+
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={"statusCode": 409, "message": "Cafedra name already exists."},
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        return JSONResponse(
+            content={"statusCode": 200, "message": "Cafedra updated successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Error in update_cafedra_manual")
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=500,
+        )
+
+
+async def delete_cafedra_manual(cafedra_code: str, db: AsyncSession):
+    try:
+        existing = await db.execute(
+            select(Cafedra).where(Cafedra.cafedra_code == cafedra_code)
+        )
+        cafedra = existing.scalars().first()
+        if not cafedra:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Cafedra not found."},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Block deletion while specialties or users still reference this cafedra.
+        dep_specialty = await db.execute(
+            select(Specialty).where(Specialty.cafedra_code == cafedra_code)
+        )
+        if dep_specialty.scalars().first():
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Cafedra has specialties. Delete them first.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        dep_user = await db.execute(
+            select(User).where(User.cafedra_code == cafedra_code)
+        )
+        if dep_user.scalars().first():
+            return JSONResponse(
+                content={
+                    "statusCode": 409,
+                    "message": "Cafedra is assigned to a user. Reassign first.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        translations = await db.execute(
+            select(CafedraTranslations).where(
+                CafedraTranslations.cafedra_code == cafedra_code
+            )
+        )
+        for tr in translations.scalars().all():
+            await db.delete(tr)
+        await db.delete(cafedra)
+        await db.commit()
+
+        return JSONResponse(
+            content={"statusCode": 200, "message": "Cafedra deleted successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Error in delete_cafedra_manual")
         return JSONResponse(
             content={"statusCode": 500, "message": "Internal server error"},
             status_code=500,

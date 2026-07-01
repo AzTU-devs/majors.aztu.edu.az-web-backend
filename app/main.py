@@ -99,6 +99,18 @@ async def ensure_schema() -> None:
         # Column already exists (or DB doesn't support the statement) — ignore.
         _log.debug("out_of_class_hours column already present")
 
+    # curricula_program.year is now a free-text academic year ("2025-2026").
+    # Convert the legacy INTEGER column to VARCHAR on Postgres; SQLite is
+    # dynamically typed and tolerates text in the column, so its ALTER (which it
+    # does not support) simply errors and is ignored.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text("ALTER TABLE curricula_program ALTER COLUMN year TYPE VARCHAR USING year::varchar")
+            )
+    except Exception:
+        _log.debug("curricula_program.year already varchar or not alterable")
+
 
 @app.get("/")
 def read_root():
