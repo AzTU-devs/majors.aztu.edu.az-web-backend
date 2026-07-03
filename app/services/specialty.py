@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, text, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from app.db.session import get_db
@@ -12,7 +12,7 @@ from app.utils.language import get_language
 from app.models.speciality import Specialty
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
-from app.api.v1.schemas.specialty import CreateSpecialty
+from app.api.v1.schemas.specialty import CreateSpecialty, UpdateSpecialty
 from app.models.translation.cafedra_translations import CafedraTranslations
 from app.models.translation.specialty_translations import SpecialtyTranslations
 
@@ -244,6 +244,129 @@ async def add_specialty(
     except Exception:
         logger.exception("Error in specialty service")
         return _internal_error()
+
+# Child tables whose specialty_code must follow a specialty-code rename.
+_SPECIALTY_CHILD_TABLES = [
+    "plo",
+    "graduate_career_opportunities",
+    "competency",
+    "curricula_program",
+    "specialty_characteristics",
+    "specialty_translations",
+    "slo",  # legacy/unused, repointed only if the table still exists
+]
+
+
+async def update_specialty(
+    specialty_code: str,
+    payload: UpdateSpecialty,
+    db: AsyncSession,
+):
+    """Edit a specialty's name and/or its code.
+
+    Renaming the code is a primary-key change referenced by many child tables,
+    so under Postgres' immediate FK checks we insert a new specialties row,
+    repoint every child table to the new code, then drop the old row (works on
+    SQLite too).
+    """
+    try:
+        res = await db.execute(
+            select(Specialty).where(Specialty.specialty_code == specialty_code)
+        )
+        specialty = res.scalars().first()
+        if not specialty:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Specialty not found"},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        target_code = specialty_code
+        new_code = payload.new_specialty_code
+
+        # ---- code rename ---------------------------------------------------
+        if new_code and new_code != specialty_code:
+            taken = await db.execute(
+                select(Specialty).where(Specialty.specialty_code == new_code)
+            )
+            if taken.scalars().first():
+                return JSONResponse(
+                    content={"statusCode": 409, "message": "Specialty code already in use."},
+                    status_code=status.HTTP_409_CONFLICT,
+                )
+
+            # Only touch child tables that actually exist in this database.
+            conn = await db.connection()
+            existing = set(
+                await conn.run_sync(lambda c: sa_inspect(c).get_table_names())
+            )
+
+            now = datetime.utcnow()
+            await db.execute(
+                text(
+                    "INSERT INTO specialties (cafedra_code, specialty_code, created_at, updated_at) "
+                    "SELECT cafedra_code, :new, created_at, :now FROM specialties WHERE specialty_code = :old"
+                ),
+                {"new": new_code, "old": specialty_code, "now": now},
+            )
+            for table in _SPECIALTY_CHILD_TABLES:
+                if table in existing:
+                    await db.execute(
+                        text(f"UPDATE {table} SET specialty_code = :new WHERE specialty_code = :old"),
+                        {"new": new_code, "old": specialty_code},
+                    )
+            await db.execute(
+                text("DELETE FROM specialties WHERE specialty_code = :old"),
+                {"old": specialty_code},
+            )
+            target_code = new_code
+
+        # ---- name change ---------------------------------------------------
+        if payload.specialty_name is not None:
+            try:
+                en_name = translate_to_english(payload.specialty_name)
+            except Exception:
+                en_name = payload.specialty_name
+            now = datetime.utcnow()
+            for lang, name in (("az", payload.specialty_name), ("en", en_name)):
+                tr_res = await db.execute(
+                    select(SpecialtyTranslations).where(
+                        SpecialtyTranslations.specialty_code == target_code,
+                        SpecialtyTranslations.language_code == lang,
+                    )
+                )
+                tr = tr_res.scalars().first()
+                if tr:
+                    tr.specialty_name = name
+                else:
+                    db.add(SpecialtyTranslations(
+                        specialty_code=target_code,
+                        language_code=lang,
+                        specialty_name=name,
+                        created_at=now,
+                    ))
+
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            return JSONResponse(
+                content={"statusCode": 409, "message": "Specialty code or name already exists."},
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        return JSONResponse(
+            content={
+                "statusCode": 200,
+                "message": "Specialty updated successfully.",
+                "specialty_code": target_code,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Error in update_specialty")
+        return _internal_error()
+
 
 async def delete_specialty(
     specialty_code: str,
