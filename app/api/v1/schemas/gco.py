@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 class GCOTranslationCreate(BaseModel):
@@ -12,6 +12,7 @@ class GCOCreate(BaseModel):
 
 class GCOUpdate(BaseModel):
     career_content: str
+    career_title: Optional[str] = None
 
 class GCOTranslationOut(BaseModel):
     language_code: str

@@ -7,7 +7,7 @@ from fastapi import Depends, status
 from sqlalchemy.future import select
 from fastapi.responses import JSONResponse
 from app.utils.language import get_language
-from app.api.v1.schemas.clo import CreateClo
+from app.api.v1.schemas.clo import CreateClo, UpdateClo
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
 from app.models.translation.clo_translations import CloTranslations
@@ -196,5 +196,56 @@ async def get_clo_by_subject_code(
         )
 
     except Exception:
+        logger.exception("Error in clo service")
+        return _internal_error()
+
+
+async def update_clo(
+    clo_code: str,
+    clo_request: UpdateClo,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        clo_query = await db.execute(select(Clo).where(Clo.clo_code == clo_code))
+        clo = clo_query.scalars().first()
+        if not clo:
+            return JSONResponse(
+                content={"status_code": 404, "message": "CLO not found"},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            en_content = translate_to_english(clo_request.clo_content)
+        except Exception:
+            en_content = clo_request.clo_content
+
+        now = datetime.utcnow()
+        for lang, content in (("az", clo_request.clo_content), ("en", en_content)):
+            tr_res = await db.execute(
+                select(CloTranslations).where(
+                    CloTranslations.clo_code == clo_code,
+                    CloTranslations.language_code == lang,
+                )
+            )
+            tr = tr_res.scalars().first()
+            if tr:
+                tr.clo_content = content
+            else:
+                db.add(CloTranslations(
+                    clo_code=clo_code,
+                    language_code=lang,
+                    clo_content=content,
+                    created_at=now,
+                ))
+
+        clo.updated_at = now
+        await db.commit()
+
+        return JSONResponse(
+            content={"status_code": 200, "message": "CLO updated successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
         logger.exception("Error in clo service")
         return _internal_error()

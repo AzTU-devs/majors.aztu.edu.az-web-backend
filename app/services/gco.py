@@ -258,6 +258,12 @@ async def update_gco(db: AsyncSession, career_code: str, gco_data):
         tr_az.career_content=gco_data.career_content
         tr_en.career_content=translate_to_english(gco_data.career_content)
 
+        # career_title lives on the translation rows (per language); update it
+        # when provided, mirroring how create_gco stores it.
+        if getattr(gco_data, "career_title", None) is not None:
+            tr_az.career_title = gco_data.career_title
+            tr_en.career_title = translate_to_english(gco_data.career_title)
+
         await db.commit()
         await db.refresh(gco)
 
