@@ -97,8 +97,11 @@ async def create_admin(payload: CreateAdmin, db: AsyncSession):
 
         try:
             await db.commit()
-        except IntegrityError:
+        except IntegrityError as exc:
             await db.rollback()
+            # Log the true cause — a hidden one is a desynced id sequence
+            # (duplicate primary key), which is NOT a real duplicate account.
+            logger.warning("create_admin IntegrityError: %s", exc)
             return JSONResponse(
                 content={"statusCode": 409, "message": "Admin already exists."},
                 status_code=status.HTTP_409_CONFLICT,
