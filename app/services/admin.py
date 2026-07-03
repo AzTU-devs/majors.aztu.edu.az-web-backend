@@ -25,67 +25,76 @@ def _internal_error() -> JSONResponse:
 
 
 async def create_admin(payload: CreateAdmin, db: AsyncSession):
-    """Create an admin/dev account (auth.role == 1, approved) + its profile."""
+    """Create an admin/dev account (auth.role == 1, approved) + its profile.
+
+    Also self-heals partial states: if an admin auth row exists but is missing
+    its profile (e.g. the seeded admin, or a half-finished create), the profile
+    is attached instead of hard-failing. Each conflict returns a specific reason
+    so the caller never sees a vague "already exists".
+    """
     try:
-        existing = await db.execute(
-            select(Auth).where(Auth.fin_kod == payload.fin_kod)
-        )
-        if existing.scalar_one_or_none():
+        existing_auth = (
+            await db.execute(select(Auth).where(Auth.fin_kod == payload.fin_kod))
+        ).scalar_one_or_none()
+
+        # FIN already belongs to a NON-admin (e.g. a kafedra müdiri) account.
+        if existing_auth and existing_auth.role != ADMIN_ROLE:
             return JSONResponse(
-                content={"statusCode": 409, "message": "Fin kod in use."},
+                content={"statusCode": 409, "message": "Fin kod in use by a non-admin account."},
                 status_code=status.HTTP_409_CONFLICT,
             )
 
-        # Both admin_profile.email and admin_profile.fin_kod are unique; check
-        # them up front so the caller gets a specific reason instead of a
-        # generic "Admin already exists" from the commit-time IntegrityError.
-        email_taken = await db.execute(
-            select(AdminProfile).where(AdminProfile.email == payload.email)
-        )
-        if email_taken.scalar_one_or_none():
+        # Email is unique across admin profiles (ignore the row we may complete).
+        email_owner = (
+            await db.execute(select(AdminProfile).where(AdminProfile.email == payload.email))
+        ).scalar_one_or_none()
+        if email_owner and email_owner.fin_kod != payload.fin_kod:
             return JSONResponse(
                 content={"statusCode": 409, "message": "Email already in use."},
                 status_code=status.HTTP_409_CONFLICT,
             )
 
-        profile_taken = await db.execute(
-            select(AdminProfile).where(AdminProfile.fin_kod == payload.fin_kod)
-        )
-        if profile_taken.scalar_one_or_none():
+        existing_profile = (
+            await db.execute(select(AdminProfile).where(AdminProfile.fin_kod == payload.fin_kod))
+        ).scalar_one_or_none()
+
+        # A fully-formed admin already exists — nothing to do.
+        if existing_auth and existing_profile:
             return JSONResponse(
-                content={
-                    "statusCode": 409,
-                    "message": "An admin profile with this FIN already exists.",
-                },
+                content={"statusCode": 409, "message": "An admin with this FIN already exists."},
                 status_code=status.HTTP_409_CONFLICT,
             )
 
-        try:
-            validate_password(payload.password)
-        except HTTPException as exc:
-            return JSONResponse(
-                content={"statusCode": exc.status_code, "message": exc.detail},
-                status_code=exc.status_code,
-            )
+        now = datetime.utcnow()
 
-        new_auth = Auth(
-            fin_kod=payload.fin_kod,
-            password=hash_password(payload.password),
-            role=ADMIN_ROLE,
-            approved=True,
-            created_at=datetime.utcnow(),
-            updated_at=None,
-        )
-        new_profile = AdminProfile(
+        if existing_auth is None:
+            # Brand-new admin: validate password and create the auth row.
+            try:
+                validate_password(payload.password)
+            except HTTPException as exc:
+                return JSONResponse(
+                    content={"statusCode": exc.status_code, "message": exc.detail},
+                    status_code=exc.status_code,
+                )
+            db.add(Auth(
+                fin_kod=payload.fin_kod,
+                password=hash_password(payload.password),
+                role=ADMIN_ROLE,
+                approved=True,
+                created_at=now,
+                updated_at=None,
+            ))
+        # else: existing admin auth without a profile -> just attach the profile
+        # (its existing password is kept, so this can't hijack a live account).
+
+        db.add(AdminProfile(
             fin_kod=payload.fin_kod,
             name=payload.name,
             surname=payload.surname,
             email=payload.email,
-            created_at=datetime.utcnow(),
-        )
+            created_at=now,
+        ))
 
-        db.add(new_auth)
-        db.add(new_profile)
         try:
             await db.commit()
         except IntegrityError:
@@ -96,7 +105,14 @@ async def create_admin(payload: CreateAdmin, db: AsyncSession):
             )
 
         return JSONResponse(
-            content={"statusCode": 201, "message": "Admin created."},
+            content={
+                "statusCode": 201,
+                "message": (
+                    "Admin created."
+                    if existing_auth is None
+                    else "Admin profile attached to the existing account."
+                ),
+            },
             status_code=status.HTTP_201_CREATED,
         )
     except Exception:
