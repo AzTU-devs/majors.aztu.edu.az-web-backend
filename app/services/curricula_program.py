@@ -117,6 +117,11 @@ async def add_curricula(
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        # Normalise the codes so a stray leading/trailing space can't produce a
+        # subject that lists fine but 404s on lookup by its exact code.
+        curricula_req.subject_code = curricula_req.subject_code.strip()
+        curricula_req.specialty_code = curricula_req.specialty_code.strip()
+
         specialty_query = await db.execute(
             select(Specialty)
             .where(Specialty.specialty_code == curricula_req.specialty_code)
@@ -261,7 +266,9 @@ async def get_curricula_by_subject(
             .where(CurriculaProgram.subject_code == subject_code)
         )
 
-        subject = subject_query.scalar_one_or_none()
+        # .first() (not scalar_one_or_none) so an accidental duplicate code
+        # returns the subject instead of raising a 500.
+        subject = subject_query.scalars().first()
 
         if not subject:
             return JSONResponse(
