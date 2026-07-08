@@ -19,6 +19,8 @@ class Specialty(Base):
     id = Column(Integer, primary_key=True, index=True)
     cafedra_code = Column(String, ForeignKey("cafedras.cafedra_code"), nullable=False)
     specialty_code = Column(String, nullable=False, unique=True)
+    # Degree level: 1 = Bakalavr (bachelor), 2 = Magistr (master).
+    degree = Column(Integer, nullable=False, default=1, server_default="1")
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime)
 

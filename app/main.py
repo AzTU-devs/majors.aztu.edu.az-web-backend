@@ -99,6 +99,27 @@ async def ensure_schema() -> None:
         # Column already exists (or DB doesn't support the statement) — ignore.
         _log.debug("out_of_class_hours column already present")
 
+    # specialties.degree (1=bachelor, 2=master) for older databases.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text("ALTER TABLE specialties ADD COLUMN degree INTEGER NOT NULL DEFAULT 1")
+            )
+    except Exception:
+        _log.debug("specialties.degree column already present")
+
+    # Drop the old (name, language) unique on specialty_translations so a
+    # bachelor and master specialty can share a name (Postgres). SQLite has no
+    # DROP CONSTRAINT, so it errors and is ignored — remove the model's
+    # constraint means fresh SQLite DBs never create it anyway.
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                text("ALTER TABLE specialty_translations DROP CONSTRAINT IF EXISTS uq_specialty_name_lang")
+            )
+    except Exception:
+        _log.debug("uq_specialty_name_lang already absent or not droppable")
+
     # curricula_program.year is now a free-text academic year ("2025-2026").
     # Convert the legacy INTEGER column to VARCHAR on Postgres; SQLite is
     # dynamically typed and tolerates text in the column, so its ALTER (which it

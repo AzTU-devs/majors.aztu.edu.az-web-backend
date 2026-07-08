@@ -7,8 +7,10 @@ class SpecialtyBase(BaseModel):
     specialty_name: str
 
 class CreateSpecialty(SpecialtyBase):
-    pass
+    # 1 = Bakalavr (bachelor), 2 = Magistr (master)
+    degree: int = 1
 
 class UpdateSpecialty(BaseModel):
     specialty_name: Optional[str] = None
     new_specialty_code: Optional[str] = None
+    degree: Optional[int] = None

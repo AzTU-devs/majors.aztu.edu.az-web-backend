@@ -14,7 +14,9 @@ class SpecialtyTranslations(Base):
     __tablename__ = "specialty_translations"
     __table_args__ = (
         UniqueConstraint("specialty_code", "language_code", name="uq_specialty_lang"),
-        UniqueConstraint("specialty_name", "language_code", name="uq_specialty_name_lang"),
+        # Name uniqueness is enforced per degree level in the service layer so a
+        # bachelor and a master specialty may share a name (a DB-wide unique on
+        # (name, language) would forbid that), so it is intentionally not here.
         CheckConstraint("language_code IN ('en', 'az')")
     )
 

@@ -14,6 +14,7 @@ async def get_specialities_endpoint(
     cafedra_code: str = Query(None),
     specialty_name: str = Query(None),
     specialty_code: str = Query(None),
+    degree: int = Query(None),
     lang_code: str = Depends(get_language),
     db: AsyncSession = Depends(get_db)
 ):
@@ -22,6 +23,7 @@ async def get_specialities_endpoint(
         cafedra_code,
         specialty_name,
         specialty_code,
+        degree,
         lang_code,
         db
     )
@@ -61,6 +63,7 @@ async def get_specialties_by_cafedra_endpoint(
     cafedra_code: str,
     start: int = Query(0, ge=0),
     end: int = Query(10, ge=0),
+    degree: int = Query(None),
     lang_code: str = Depends(get_language),
     db: AsyncSession = Depends(get_db)
 ):
@@ -68,6 +71,7 @@ async def get_specialties_by_cafedra_endpoint(
         cafedra_code,
         start,
         end,
+        degree,
         lang_code,
         db
     )

@@ -30,6 +30,7 @@ async def get_specialties(
     cafedra_code: str = Query(None),
     specialty_name: str = Query(None),
     specialty_code: str = Query(None),
+    degree: int = Query(None),
     lang_code: str = Depends(get_language),
     db: AsyncSession = Depends(get_db)
 ):
@@ -50,6 +51,8 @@ async def get_specialties(
             filters.append(Cafedra.cafedra_code == cafedra_code)
         if specialty_code:
             filters.append(Specialty.specialty_code == specialty_code)
+        if degree:
+            filters.append(Specialty.degree == degree)
 
         if filters:
             query = query.where(and_(*filters))
@@ -98,6 +101,7 @@ async def get_specialties(
                 "cafedra_name": cafedra_name,
                 "specialty_code": specialty.specialty_code,
                 "specialty_name": translation.specialty_name,
+                "degree": specialty.degree,
                 "created_at": translation.created_at.isoformat() if translation.created_at else None
             })
 
@@ -111,13 +115,17 @@ async def get_specialties_by_cafedra(
     cafedra_code: str,
     start: int = Query(0, ge=0),
     end: int = Query(10, ge=1),
+    degree: int = Query(None),
     lang_code: str = Depends(get_language),
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        conditions = [Specialty.cafedra_code == cafedra_code]
+        if degree:
+            conditions.append(Specialty.degree == degree)
+
         total_query = await db.execute(
-            select(func.count(Specialty.specialty_code))
-            .where(Specialty.cafedra_code == cafedra_code)
+            select(func.count(Specialty.specialty_code)).where(and_(*conditions))
         )
         total_count = total_query.scalar()
 
@@ -133,7 +141,7 @@ async def get_specialties_by_cafedra(
 
         specialty_query = await db.execute(
             select(Specialty)
-            .where(Specialty.cafedra_code == cafedra_code)
+            .where(and_(*conditions))
             .order_by(Specialty.id)
             .offset(start)
             .limit(end - start)
@@ -154,9 +162,12 @@ async def get_specialties_by_cafedra(
         specialty_details = []
         for specialty in specialties:
             t = translations_map.get(specialty.specialty_code)
+            if t is None:
+                continue
             specialty_obj = {
                 "specialty_code": t.specialty_code,
                 "specialty_name": t.specialty_name,
+                "degree": specialty.degree,
                 "created_at": t.created_at.isoformat() if t.created_at else None
             }
             specialty_details.append(specialty_obj)
@@ -187,27 +198,37 @@ async def add_specialty(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        exists_specialty_code = await db.execute(
+        code_exists = await db.execute(
             select(Specialty)
             .where(Specialty.specialty_code == specialty_details.specialty_code)
         )
+        if code_exists.scalar_one_or_none():
+            return JSONResponse(
+                content={"statusCode": 409, "message": "Specialty code already exists."},
+                status_code=status.HTTP_409_CONFLICT,
+            )
 
-        exists_specialty_name = await db.execute(
-            select(SpecialtyTranslations)
+        # A name may be reused across degree levels (a bachelor and a master
+        # specialty can share a name); only block a duplicate within the same degree.
+        name_exists = await db.execute(
+            select(Specialty)
+            .join(SpecialtyTranslations, SpecialtyTranslations.specialty_code == Specialty.specialty_code)
             .where(SpecialtyTranslations.specialty_name == specialty_details.specialty_name)
+            .where(Specialty.degree == specialty_details.degree)
         )
-
-        if exists_specialty_code.scalar_one_or_none() or exists_specialty_name.scalar_one_or_none():
+        if name_exists.scalars().first():
             return JSONResponse(
                 content={
                     "statusCode": 409,
-                    "message": "Specialty already exists."
-                }, status_code=status.HTTP_409_CONFLICT
+                    "message": "A specialty with this name already exists for this degree.",
+                },
+                status_code=status.HTTP_409_CONFLICT,
             )
-        
+
         new_specialty = Specialty(
             cafedra_code=specialty_details.cafedra_code,
             specialty_code=specialty_details.specialty_code,
+            degree=specialty_details.degree,
             created_at=datetime.utcnow(),
             updated_at=None
         )
@@ -323,8 +344,8 @@ async def update_specialty(
             now = datetime.utcnow()
             await db.execute(
                 text(
-                    "INSERT INTO specialties (cafedra_code, specialty_code, created_at, updated_at) "
-                    "SELECT cafedra_code, :new, created_at, :now FROM specialties WHERE specialty_code = :old"
+                    "INSERT INTO specialties (cafedra_code, specialty_code, degree, created_at, updated_at) "
+                    "SELECT cafedra_code, :new, degree, created_at, :now FROM specialties WHERE specialty_code = :old"
                 ),
                 {"new": new_code, "old": specialty_code, "now": now},
             )
@@ -364,6 +385,13 @@ async def update_specialty(
                         specialty_name=name,
                         created_at=now,
                     ))
+
+        # ---- degree change -------------------------------------------------
+        if payload.degree is not None:
+            await db.execute(
+                text("UPDATE specialties SET degree = :d WHERE specialty_code = :c"),
+                {"d": payload.degree, "c": target_code},
+            )
 
         try:
             await db.commit()
@@ -453,14 +481,20 @@ async def get_specialty_by_specialty_code(
                 }, status_code=status.HTTP_404_NOT_FOUND
             )
 
+        degree_res = await db.execute(
+            select(Specialty.degree).where(Specialty.specialty_code == specialty_code)
+        )
+        degree = degree_res.scalar_one_or_none()
+
         return JSONResponse(
             content={
                 "statusCode": 200,
                 "message": "Specialty fetched successfully.",
-                "specialty_name": specialty.specialty_name
+                "specialty_name": specialty.specialty_name,
+                "degree": degree
             }, status_code=status.HTTP_200_OK
         )
-    
+
     except Exception:
         logger.exception("Error in specialty service")
         return _internal_error()
