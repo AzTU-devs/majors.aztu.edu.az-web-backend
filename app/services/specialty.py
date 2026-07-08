@@ -54,6 +54,9 @@ async def get_specialties(
         if filters:
             query = query.where(and_(*filters))
 
+        # Stable order so the list (and its syllabus order) never shifts on edit/delete.
+        query = query.order_by(Specialty.id)
+
         specialties_result = await db.execute(query)
         specialties_list = specialties_result.scalars().all()
 
@@ -131,6 +134,7 @@ async def get_specialties_by_cafedra(
         specialty_query = await db.execute(
             select(Specialty)
             .where(Specialty.cafedra_code == cafedra_code)
+            .order_by(Specialty.id)
             .offset(start)
             .limit(end - start)
         )
@@ -175,6 +179,14 @@ async def add_specialty(
     db: AsyncSession = Depends(get_db)
 ):
     try:
+        from app.utils.code_validator import is_valid_code, CODE_RULE_MESSAGE
+        specialty_details.specialty_code = specialty_details.specialty_code.strip()
+        if not is_valid_code(specialty_details.specialty_code):
+            return JSONResponse(
+                content={"statusCode": 400, "message": CODE_RULE_MESSAGE},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
         exists_specialty_code = await db.execute(
             select(Specialty)
             .where(Specialty.specialty_code == specialty_details.specialty_code)
@@ -282,9 +294,17 @@ async def update_specialty(
 
         target_code = specialty_code
         new_code = payload.new_specialty_code
+        if new_code is not None:
+            new_code = new_code.strip()
 
         # ---- code rename ---------------------------------------------------
         if new_code and new_code != specialty_code:
+            from app.utils.code_validator import is_valid_code, CODE_RULE_MESSAGE
+            if not is_valid_code(new_code):
+                return JSONResponse(
+                    content={"statusCode": 400, "message": CODE_RULE_MESSAGE},
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
             taken = await db.execute(
                 select(Specialty).where(Specialty.specialty_code == new_code)
             )

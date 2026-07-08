@@ -25,6 +25,15 @@ async def add_cafedra_manual(
     db: AsyncSession,
 ):
     try:
+        from app.utils.code_validator import is_valid_code, CODE_RULE_MESSAGE
+        payload.cafedra_code = payload.cafedra_code.strip()
+        payload.faculty_code = payload.faculty_code.strip()
+        if not is_valid_code(payload.cafedra_code):
+            return JSONResponse(
+                content={"statusCode": 400, "message": CODE_RULE_MESSAGE},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
         faculty_query = await db.execute(
             select(Faculty).where(Faculty.faculty_code == payload.faculty_code)
         )

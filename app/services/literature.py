@@ -114,6 +114,7 @@ class LiteratureCRUD:
             literature_query = await db.execute(
                 select(Literature)
                 .where(Literature.subject_code == subject_code)
+                .order_by(Literature.id)
                 .offset(start)
                 .limit(end - start)
             )
@@ -186,6 +187,7 @@ class LiteratureCRUD:
             literature_query = await db.execute(
                 select(Literature)
                 .where(Literature.specialty_code == specialty_code)
+                .order_by(Literature.id)
                 .offset(start)
                 .limit(end - start)
             )
@@ -328,6 +330,7 @@ class LiteratureCRUD:
             # Literature-ləri gətir
             literature_query = await db.execute(
                 select(Literature)
+                .order_by(Literature.id)
                 .offset(start)
                 .limit(end - start)
             )
@@ -584,6 +587,7 @@ class LiteratureCRUD:
             literature_query = await db.execute(
                 select(Literature)
                 .where(final_condition)
+                .order_by(Literature.id)
                 .offset(start)
                 .limit(end - start)
             )

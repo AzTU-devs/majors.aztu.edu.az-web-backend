@@ -24,6 +24,13 @@ async def update_clo_endpoint(
 ):
     return await update_clo(clo_code, clo_request, db)
 
+@router.delete("/clo/{clo_code}", dependencies=[Depends(token_required())])
+async def delete_clo_endpoint(
+    clo_code: str = Path(...),
+    db: AsyncSession = Depends(get_db)
+):
+    return await delete_clo(clo_code, db)
+
 @router.get("/clo/{subject_code}")
 async def get_clo_endpoint(
     subject_code: str,

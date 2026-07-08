@@ -12,6 +12,8 @@ from app.api.v1.schemas.topic import CreateTopic
 from app.utils.translator import translate_to_english
 from app.models.curricula_program import CurriculaProgram
 from app.models.translation.topic_translations import TopicTranslations
+from app.models.tlo import Tlo
+from app.models.translation.tlo_translation import TloTranslations
 from sqlalchemy import func
 import traceback
 
@@ -206,6 +208,7 @@ async def get_topic_by_subject_code(
         topic_query = await db.execute(
             select(Topic)
             .where(Topic.subject_code == subject_code)
+            .order_by(Topic.id)
             .offset(start)
             .limit(end - start)
         )
@@ -257,4 +260,53 @@ async def get_topic_by_subject_code(
                 "statusCode": 500,
                 "error": str(e)
             }, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+async def delete_topic(
+    topic_code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a topic and everything under it (its translations and its TLOs)."""
+    try:
+        topic_query = await db.execute(select(Topic).where(Topic.topic_code == topic_code))
+        topic = topic_query.scalars().first()
+        if not topic:
+            return JSONResponse(
+                content={"statusCode": 404, "message": "Topic not found"},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # TLOs (topic learning outcomes) under this topic + their translations.
+        tlo_rows = await db.execute(select(Tlo).where(Tlo.topic_code == topic_code))
+        tlos = tlo_rows.scalars().all()
+        tlo_codes = [t.tlo_code for t in tlos]
+        if tlo_codes:
+            tlo_tr = await db.execute(
+                select(TloTranslations).where(TloTranslations.tlo_code.in_(tlo_codes))
+            )
+            for tr in tlo_tr.scalars().all():
+                await db.delete(tr)
+        for t in tlos:
+            await db.delete(t)
+
+        # Topic translations.
+        topic_tr = await db.execute(
+            select(TopicTranslations).where(TopicTranslations.topic_code == topic_code)
+        )
+        for tr in topic_tr.scalars().all():
+            await db.delete(tr)
+
+        await db.delete(topic)
+        await db.commit()
+
+        return JSONResponse(
+            content={"statusCode": 200, "message": "Topic deleted successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        return JSONResponse(
+            content={"statusCode": 500, "message": "Internal server error"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )

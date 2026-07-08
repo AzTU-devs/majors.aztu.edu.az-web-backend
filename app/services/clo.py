@@ -160,6 +160,7 @@ async def get_clo_by_subject_code(
         clo_query = await db.execute(
             select(Clo)
             .where(Clo.subject_code == subject_code)
+            .order_by(Clo.id)
         )
 
         clos = clo_query.scalars().all()
@@ -243,6 +244,37 @@ async def update_clo(
 
         return JSONResponse(
             content={"status_code": 200, "message": "CLO updated successfully."},
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception:
+        await db.rollback()
+        logger.exception("Error in clo service")
+        return _internal_error()
+
+
+async def delete_clo(
+    clo_code: str,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        clo_query = await db.execute(select(Clo).where(Clo.clo_code == clo_code))
+        clo = clo_query.scalars().first()
+        if not clo:
+            return JSONResponse(
+                content={"status_code": 404, "message": "CLO not found"},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        translations = await db.execute(
+            select(CloTranslations).where(CloTranslations.clo_code == clo_code)
+        )
+        for tr in translations.scalars().all():
+            await db.delete(tr)
+        await db.delete(clo)
+        await db.commit()
+
+        return JSONResponse(
+            content={"status_code": 200, "message": "CLO deleted successfully."},
             status_code=status.HTTP_200_OK,
         )
     except Exception:

@@ -56,6 +56,28 @@ DEFAULT_ASSESSMENT = [
     },
 ]
 
+# language_of_instruction value -> Google Translate source code.
+# 1 Azerbaijani, 2 English, 3 Russian, 4 German, 5 Turkish.
+_LANG_SOURCE = {1: "az", 2: "en", 3: "ru", 4: "de", 5: "tr"}
+
+
+def _to_english(text, language_of_instruction):
+    """Translate ``text`` into English from the subject's instruction language.
+
+    Falls back to the original text on any failure. When the subject is already
+    taught in English no translation is attempted.
+    """
+    if not text:
+        return text or ""
+    source = _LANG_SOURCE.get(language_of_instruction, "az")
+    if source == "en":
+        return text
+    try:
+        return translate_to_english(text, source_lang=source)
+    except Exception:
+        return text
+
+
 async def _get_or_create_subject_translation(
     db: AsyncSession,
     subject_code: str,
@@ -89,14 +111,18 @@ async def _get_or_create_subject_translation(
     if az_row is None:
         return None
 
-    try:
-        translated_name = translate_to_english(az_row.subject_name) if lang_code == "en" else az_row.subject_name
-        translated_desc = (
-            translate_to_english(az_row.subject_description)
-            if lang_code == "en" and az_row.subject_description
-            else (az_row.subject_description or "")
+    if lang_code == "en":
+        # Translate from the subject's actual instruction language (ru/de/tr/az),
+        # not always Azerbaijani, so a Russian/German/Turkish name renders right.
+        loi_res = await db.execute(
+            select(CurriculaProgram.language_of_instruction).where(
+                CurriculaProgram.subject_code == subject_code
+            )
         )
-    except Exception:
+        language_of_instruction = loi_res.scalar_one_or_none()
+        translated_name = _to_english(az_row.subject_name, language_of_instruction)
+        translated_desc = _to_english(az_row.subject_description, language_of_instruction)
+    else:
         translated_name = az_row.subject_name
         translated_desc = az_row.subject_description or ""
 
@@ -121,6 +147,13 @@ async def add_curricula(
         # subject that lists fine but 404s on lookup by its exact code.
         curricula_req.subject_code = curricula_req.subject_code.strip()
         curricula_req.specialty_code = curricula_req.specialty_code.strip()
+
+        from app.utils.code_validator import is_valid_code, CODE_RULE_MESSAGE
+        if not is_valid_code(curricula_req.subject_code):
+            return JSONResponse(
+                content={"statusCode": 400, "message": CODE_RULE_MESSAGE},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         specialty_query = await db.execute(
             select(Specialty)
@@ -170,11 +203,25 @@ async def add_curricula(
             updated_at=now,
         )
 
+        # Build the English translation from the actual instruction language
+        # (Azerbaijani / Russian / German / Turkish), or use the text as-is when
+        # the subject is already taught in English.
+        new_curricula_en = CurriculaProgramTranslations(
+            subject_code=curricula_req.subject_code,
+            subject_name=_to_english(curricula_req.subject_name, curricula_req.language_of_instruction),
+            subject_description=_to_english(curricula_req.subject_desc, curricula_req.language_of_instruction),
+            language_code="en",
+            created_at=now,
+            updated_at=now,
+        )
+
         db.add(new_curricula)
         db.add(new_curricula_az)
+        db.add(new_curricula_en)
         await db.commit()
         await db.refresh(new_curricula)
         await db.refresh(new_curricula_az)
+        await db.refresh(new_curricula_en)
 
         return JSONResponse(
             content={
@@ -205,6 +252,7 @@ async def get_curricula_by_specialty(
         curricula_query = await db.execute(
             select(CurriculaProgram)
             .where(CurriculaProgram.specialty_code == specialty_code)
+            .order_by(CurriculaProgram.id)
             .offset(start)
             .limit(end - start)
         )
@@ -412,17 +460,33 @@ async def update_curricula(
             curricula.assessment = update_data.assessment
             updated = True
 
-        if (update_data.subject_name is not None) or (update_data.subject_description is not None):
+        if (update_data.subject_name is not None) or (update_data.subject_description is not None) or (update_data.language_of_instruction is not None):
             translations_query = await db.execute(
                 select(CurriculaProgramTranslations).where(CurriculaProgramTranslations.subject_code == subject_code)
             )
-            translations = translations_query.scalars().all()
-            for translation in translations:
-                if update_data.subject_name is not None:
-                    translation.subject_name = update_data.subject_name.get(translation.language_code, translation.subject_name)
+            translations = {t.language_code: t for t in translations_query.scalars().all()}
+
+            # Apply the incoming per-language name/description edits.
+            for lang_code, translation in translations.items():
+                if update_data.subject_name is not None and lang_code in update_data.subject_name:
+                    translation.subject_name = update_data.subject_name.get(lang_code, translation.subject_name)
                     updated = True
-                if update_data.subject_description is not None:
-                    translation.subject_description = update_data.subject_description.get(translation.language_code, translation.subject_description)
+                if update_data.subject_description is not None and lang_code in update_data.subject_description:
+                    translation.subject_description = update_data.subject_description.get(lang_code, translation.subject_description)
+                    updated = True
+
+            # Regenerate English from the primary (az) row using the subject's
+            # instruction language, unless the caller explicitly supplied English.
+            az_tr = translations.get("az")
+            en_tr = translations.get("en")
+            if az_tr is not None and en_tr is not None:
+                supplied_en_name = update_data.subject_name is not None and "en" in update_data.subject_name
+                supplied_en_desc = update_data.subject_description is not None and "en" in update_data.subject_description
+                if not supplied_en_name:
+                    en_tr.subject_name = _to_english(az_tr.subject_name, curricula.language_of_instruction)
+                    updated = True
+                if not supplied_en_desc:
+                    en_tr.subject_description = _to_english(az_tr.subject_description, curricula.language_of_instruction)
                     updated = True
 
         if updated:

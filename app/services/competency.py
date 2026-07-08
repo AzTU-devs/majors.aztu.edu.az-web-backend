@@ -108,6 +108,7 @@ async def get_competencies_by_specialty(specialty_code: str, lang: str, db: Asyn
         )
         if competency_type is not None:
             query = query.where(Competency.competency_type == competency_type)
+        query = query.order_by(Competency.id)
         result = await db.execute(query)
         rows = result.all()
 

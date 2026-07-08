@@ -98,6 +98,7 @@ async def get_plos_by_specialty(
             .join(PloTranslation, Plo.plo_code == PloTranslation.plo_code)
             .where(Plo.specialty_code == specialty_code)
             .where(PloTranslation.language_code == lang)
+            .order_by(Plo.id)
         )
 
         result = await db.execute(query)

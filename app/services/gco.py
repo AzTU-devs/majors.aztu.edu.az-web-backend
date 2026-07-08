@@ -84,6 +84,7 @@ async def get_gcos_by_specialty(specialty_code: str, lang: str, db: AsyncSession
             .join(GCOTranslation, GCO.career_code == GCOTranslation.career_code)
             .where(GCO.specialty_code == specialty_code)
             .where(GCOTranslation.language_code == lang)
+            .order_by(GCO.id)
         )
         result = await db.execute(query)
         rows = result.all()
