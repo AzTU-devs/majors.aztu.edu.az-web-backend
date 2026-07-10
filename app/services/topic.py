@@ -126,17 +126,17 @@ async def update_topic(
             select(TopicTranslations).where(
                 TopicTranslations.topic_code == topic_request.topic_code,
                 TopicTranslations.language_code == "az"
-            )
+            ).order_by(TopicTranslations.id)
         )
-        az = az_query.scalar_one_or_none()
+        az = az_query.scalars().first()
 
         en_query = await db.execute(
             select(TopicTranslations).where(
                 TopicTranslations.topic_code == topic_request.topic_code,
                 TopicTranslations.language_code == "en"
-            )
+            ).order_by(TopicTranslations.id)
         )
-        en = en_query.scalar_one_or_none()
+        en = en_query.scalars().first()
 
         if az is not None:
             if topic_request.topic_name is not None:
@@ -230,9 +230,14 @@ async def get_topic_by_subject_code(
                     TopicTranslations.topic_code == topic.topic_code,
                     TopicTranslations.language_code == lang_code
                 )
+                .order_by(TopicTranslations.id)
             )
 
-            topic_translations = topic_translations_query.scalar_one_or_none()
+            # Use .first() (not scalar_one_or_none) so a duplicate translation
+            # row doesn't 500 the whole page; skip topics with no translation.
+            topic_translations = topic_translations_query.scalars().first()
+            if topic_translations is None:
+                continue
 
             topic_obj = {
                 "topic_code": topic.topic_code,
