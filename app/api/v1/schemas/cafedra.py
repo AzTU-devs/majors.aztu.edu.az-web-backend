@@ -18,3 +18,4 @@ class CreateCafedraManual(BaseModel):
 class UpdateCafedraManual(BaseModel):
     cafedra_name: Optional[str] = None
     faculty_code: Optional[str] = None
+    general_subjects_enabled: Optional[bool] = None

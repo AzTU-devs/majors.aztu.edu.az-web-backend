@@ -151,6 +151,9 @@ async def update_cafedra_manual(
                 )
             cafedra.faculty_code = payload.faculty_code
 
+        if payload.general_subjects_enabled is not None:
+            cafedra.general_subjects_enabled = payload.general_subjects_enabled
+
         if payload.cafedra_name is not None:
             try:
                 en_name = translate_to_english(payload.cafedra_name)
@@ -390,6 +393,7 @@ async def get_cafedras(
                         "faculty_code": cafedra.faculty_code,
                         "cafedra_code": cafedra.cafedra_code,
                         "cafedra_name": translation.cafedra_name,
+                        "general_subjects_enabled": bool(cafedra.general_subjects_enabled),
                         "created_at": str(cafedra.created_at) if cafedra.created_at else None,
                         "updated_at": str(cafedra.updated_at) if cafedra.updated_at else None
                     } for cafedra, translation in rows

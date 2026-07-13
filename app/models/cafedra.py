@@ -2,8 +2,10 @@ from sqlalchemy import (
     Column,
     String,
     Integer,
+    Boolean,
     DateTime,
-    ForeignKey
+    ForeignKey,
+    text,
 )
 from app.db.database import Base
 from sqlalchemy.orm import relationship
@@ -17,6 +19,11 @@ class Cafedra(Base):
     id = Column(Integer, primary_key=True, index=True)
     faculty_code = Column(String, ForeignKey("faculties.faculty_code"), nullable=False)
     cafedra_code = Column(String, nullable=False, unique=True)
+    # When true, this cafedra may create "general subjects" and assign them to
+    # specialties of other cafedras.
+    general_subjects_enabled = Column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     created_at = Column(DateTime, nullable=False)
     updated_at = Column(DateTime, nullable=False)
 

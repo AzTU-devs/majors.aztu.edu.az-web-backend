@@ -283,7 +283,8 @@ async def get_curricula_by_specialty(
                 "year": curricula.year,
                 "hours_per_week": curricula.hours_per_week,
                 "status": curricula.status,
-                "credit": curricula.credit
+                "credit": curricula.credit,
+                "is_general": bool(curricula.is_general),
             }
 
             subjects_arr.append(subject_obj)

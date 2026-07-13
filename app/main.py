@@ -38,6 +38,7 @@ from app.api.v1.routes.match import router as match_router
 from app.api.v1.routes.clo_plo_match import router as clo_plo_match_router
 from app.api.v1.routes.competency_match import router as competency_match_router
 from app.api.v1.routes.curricula_program import router as curricula_router
+from app.api.v1.routes.general_subject import router as general_subject_router
 from app.api.v1.routes.specialty_characteristics import router as specialty_characteristics_router
 
 app = FastAPI()
@@ -64,6 +65,7 @@ app.include_router(faculty_routes, prefix="/api", tags=['Faculty'])
 app.include_router(cafedra_routes, prefix="/api", tags=['Cafedra'])
 app.include_router(specialty_routes, prefix="/api", tags=['Specialty'])
 app.include_router(curricula_router, prefix="/api", tags=['Curricula'])
+app.include_router(general_subject_router, prefix="/api", tags=['GeneralSubject'])
 app.include_router(university_routes, prefix="/api", tags=['University'])
 app.include_router(competency_router, prefix="/api", tags=['Competency'])
 app.include_router(specialty_characteristics_router, prefix="/api", tags=['Specialty_Characteristics'])
@@ -107,6 +109,18 @@ async def ensure_schema() -> None:
             )
     except Exception:
         _log.debug("specialties.degree column already present")
+
+    # General-subjects module columns for older databases.
+    for stmt in (
+        "ALTER TABLE cafedras ADD COLUMN general_subjects_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE curricula_program ADD COLUMN is_general BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE curricula_program ADD COLUMN owner_cafedra_code VARCHAR",
+    ):
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception:
+            _log.debug("general-subjects column already present: %s", stmt)
 
     # Drop the old (name, language) unique on specialty_translations so a
     # bachelor and master specialty can share a name (Postgres). SQLite has no

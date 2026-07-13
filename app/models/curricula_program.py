@@ -1,19 +1,25 @@
 from sqlalchemy import (
-    Column, 
-    String, 
-    Integer, 
+    Column,
+    String,
+    Integer,
+    Boolean,
     DateTime,
-    ForeignKey
+    ForeignKey,
+    text,
 )
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 class CurriculaProgram(Base):
     __tablename__ = "curricula_program"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     specialty_code = Column(String, ForeignKey("specialties.specialty_code"), nullable=False)
     subject_code = Column(String, nullable=False)
+    # General subjects are created by one cafedra and assigned to specialties of
+    # other cafedras. Regular subjects have is_general=False and no owner.
+    is_general = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    owner_cafedra_code = Column(String, nullable=True)
     semester = Column(Integer, nullable=False)
     # 1 - autumn semester
     # 2 - spring semester
