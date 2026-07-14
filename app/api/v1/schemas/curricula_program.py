@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 class CreateCurricula(BaseModel):
@@ -17,6 +17,9 @@ class CreateCurricula(BaseModel):
     out_of_class_hours: Optional[str] = None
     teaching_methods: Optional[str] = None
     assessment: Optional[str] = None
+    # Optionally assign the same subject to additional specialties (which may
+    # belong to other cafedras). One curricula row is created per specialty.
+    additional_specialty_codes: Optional[List[str]] = None
 
 class UpdateCurricula(BaseModel):
     semester: Optional[int] = None

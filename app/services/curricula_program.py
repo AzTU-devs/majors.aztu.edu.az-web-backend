@@ -218,6 +218,40 @@ async def add_curricula(
         db.add(new_curricula)
         db.add(new_curricula_az)
         db.add(new_curricula_en)
+
+        # Assign the same subject to any additional specialties (possibly in
+        # other cafedras) — one curricula row each, sharing the translations.
+        extra_codes = [
+            c for c in dict.fromkeys(curricula_req.additional_specialty_codes or [])
+            if c and c != curricula_req.specialty_code
+        ]
+        if extra_codes:
+            found = set(
+                (await db.execute(
+                    select(Specialty.specialty_code).where(Specialty.specialty_code.in_(extra_codes))
+                )).scalars().all()
+            )
+            for code in extra_codes:
+                if code not in found:
+                    continue
+                db.add(CurriculaProgram(
+                    specialty_code=code,
+                    subject_code=curricula_req.subject_code,
+                    semester=curricula_req.semester,
+                    status=curricula_req.status,
+                    year=curricula_req.year,
+                    credit=curricula_req.credit,
+                    hours_per_week=curricula_req.hours_per_week,
+                    form_of_education=curricula_req.form_of_education,
+                    language_of_instruction=curricula_req.language_of_instruction,
+                    in_class_hours=curricula_req.in_class_hours,
+                    out_of_class_hours=curricula_req.out_of_class_hours,
+                    teaching_methods=curricula_req.teaching_methods,
+                    assessment=assessment_value,
+                    created_at=now,
+                    updated_at=now,
+                ))
+
         await db.commit()
         await db.refresh(new_curricula)
         await db.refresh(new_curricula_az)
@@ -373,16 +407,18 @@ async def delete_curricula(
             .where(CurriculaProgram.subject_code == subject_code)
         )
 
-        curricula = subject_query.scalar_one_or_none()
+        # A subject may be assigned to several specialties (multiple rows share
+        # the subject_code); delete them all along with the shared translations.
+        curriculas = subject_query.scalars().all()
 
-        if not curricula:
+        if not curriculas:
             return JSONResponse(
                 content={
                     "statusCode": 404,
                     "message": "Subject not found"
                 }, status_code=status.HTTP_404_NOT_FOUND
             )
-        
+
         curricula_translation_query = await db.execute(
             select(CurriculaProgramTranslations)
             .where(CurriculaProgramTranslations.subject_code == subject_code)
@@ -392,7 +428,8 @@ async def delete_curricula(
 
         for translation in curricula_translations:
             await db.delete(translation)
-        await db.delete(curricula)
+        for curricula in curriculas:
+            await db.delete(curricula)
         await db.commit()
 
         return JSONResponse(
@@ -417,48 +454,33 @@ async def update_curricula(
         subject_query = await db.execute(
             select(CurriculaProgram).where(CurriculaProgram.subject_code == subject_code)
         )
-        curricula = subject_query.scalar_one_or_none()
-        if not curricula:
+        # A subject may be assigned to several specialties (rows sharing the
+        # subject_code); apply the field edits to all of them.
+        curriculas = subject_query.scalars().all()
+        if not curriculas:
             return JSONResponse(
                 content={
                     "statusCode": 404,
                     "message": "Subject not found"
                 }, status_code=status.HTTP_404_NOT_FOUND
             )
+        curricula = curriculas[0]
 
         updated = False
-        if update_data.semester is not None:
-            curricula.semester = update_data.semester
-            updated = True
-        if update_data.status is not None:
-            curricula.status = update_data.status
-            updated = True
-        if update_data.year is not None:
-            curricula.year = update_data.year
-            updated = True
-        if update_data.credit is not None:
-            curricula.credit = update_data.credit
-            updated = True
-        if update_data.hours_per_week is not None:
-            curricula.hours_per_week = update_data.hours_per_week
-            updated = True
-        if update_data.form_of_education is not None:
-            curricula.form_of_education = update_data.form_of_education
-            updated = True
-        if update_data.language_of_instruction is not None:
-            curricula.language_of_instruction = update_data.language_of_instruction
-            updated = True
-        if update_data.in_class_hours is not None:
-            curricula.in_class_hours = update_data.in_class_hours
-            updated = True
-        if update_data.out_of_class_hours is not None:
-            curricula.out_of_class_hours = update_data.out_of_class_hours
-            updated = True
-        if update_data.teaching_methods is not None:
-            curricula.teaching_methods = update_data.teaching_methods
-            updated = True
-        if update_data.assessment is not None:
-            curricula.assessment = update_data.assessment
+        field_updates = {}
+        for field in (
+            "semester", "status", "year", "credit", "hours_per_week",
+            "form_of_education", "language_of_instruction",
+            "in_class_hours", "out_of_class_hours", "teaching_methods", "assessment",
+        ):
+            value = getattr(update_data, field)
+            if value is not None:
+                field_updates[field] = value
+
+        if field_updates:
+            for row in curriculas:
+                for field, value in field_updates.items():
+                    setattr(row, field, value)
             updated = True
 
         if (update_data.subject_name is not None) or (update_data.subject_description is not None) or (update_data.language_of_instruction is not None):
