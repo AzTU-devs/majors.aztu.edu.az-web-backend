@@ -155,6 +155,23 @@ async def add_curricula(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
+        # A subject's topics/TLOs/matches are keyed by subject_code alone, so
+        # two unrelated subjects sharing a code share one topic list. Reject the
+        # duplicate here the same way create_general_subject does — assigning an
+        # existing subject to more specialties goes through
+        # additional_specialty_codes below, not through a second create.
+        duplicate = (
+            await db.execute(
+                select(CurriculaProgram.id)
+                .where(CurriculaProgram.subject_code == curricula_req.subject_code)
+            )
+        ).scalars().first()
+        if duplicate:
+            return JSONResponse(
+                content={"statusCode": 409, "message": "Subject code already exists."},
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
         specialty_query = await db.execute(
             select(Specialty)
             .where(Specialty.specialty_code == curricula_req.specialty_code)

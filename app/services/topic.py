@@ -1,4 +1,3 @@
-import random
 from datetime import datetime
 from app.models.clo import Clo
 from app.db.session import get_db
@@ -7,6 +6,7 @@ from sqlalchemy.future import select
 from fastapi import Depends, status, Query
 from fastapi.responses import JSONResponse
 from app.utils.language import get_language
+from app.utils.code_generator import generate_code
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.schemas.topic import CreateTopic
 from app.utils.translator import translate_to_english
@@ -18,8 +18,9 @@ from sqlalchemy import func
 import traceback
 
 def generate_topic_code():
-    random_number = random.randint(10000, 99999)
-    return f"PLO-{random_number}"
+    # Was ``f"PLO-{random.randint(10000, 99999)}"`` — a copy-paste of
+    # generate_plo_code that both mislabelled topics and collided constantly.
+    return generate_code("TOPIC")
 
 async def add_topic(
     topic_request: CreateTopic,

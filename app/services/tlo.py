@@ -1,4 +1,3 @@
-import random
 import logging
 import traceback
 from datetime import datetime
@@ -9,6 +8,7 @@ from fastapi import Depends, status
 from sqlalchemy.future import select
 from fastapi.responses import JSONResponse
 from app.utils.language import get_language
+from app.utils.code_generator import generate_code
 from app.api.v1.schemas.tlo import CreateTlo
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.translator import translate_to_english
@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def generate_tlo_code():
-    random_number = random.randint(10000, 99999)
-    return f"tlo-{random_number}"
+    # Same 90k-space collision defect the topic codes had; a collision here
+    # makes one TLO render another's text.
+    return generate_code("TLO")
 
 
 async def add_tlo(
